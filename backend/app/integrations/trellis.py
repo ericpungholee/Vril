@@ -1,7 +1,7 @@
 import replicate
 from typing import Optional, List
 from typing_extensions import TypedDict
-from config import settings
+from app.core.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
