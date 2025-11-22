@@ -14,22 +14,15 @@ import {
 import { ArrowLeft, Upload, Sparkles, RotateCw, Download, ZoomIn, ZoomOut, Play, Pause, Settings, Sun, Warehouse, Eye, EyeOff, Package, Image, Box, Boxes } from "lucide-react";
 import ModelViewer from "@/components/ModelViewer";
 import { AIChatPanel } from "@/components/AIChatPanel";
-import LoadingOverlay from "@/components/LoadingOverlay";
-import { useSearchParams } from "next/navigation";
+import { useLoading } from "@/providers/LoadingProvider";
 
 export default function ProductPage() {
-  const searchParams = useSearchParams();
-  const shouldTransition = searchParams.get("transition") === "true";
-  const [showTransition, setShowTransition] = useState(shouldTransition);
+  const { stopLoading } = useLoading();
 
   useEffect(() => {
-    if (showTransition) {
-      const timer = setTimeout(() => {
-        setShowTransition(false);
-      }, 100); // Start exit animation almost immediately
-      return () => clearTimeout(timer);
-    }
-  }, [showTransition]);
+    // Signal that we've arrived so the loader can exit
+    stopLoading();
+  }, [stopLoading]);
 
   const [currentModelUrl, setCurrentModelUrl] = useState<string>();
   const [selectedColor, setSelectedColor] = useState("#60a5fa");
@@ -58,9 +51,6 @@ export default function ProductPage() {
 
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden relative">
-      {/* Loading Overlay Transition */}
-      <LoadingOverlay isVisible={false} isExiting={showTransition} />
-      
       <div className="flex-1 flex overflow-hidden">
         {/* 3D Viewer */}
         <div className="flex-1 relative bg-muted/30">

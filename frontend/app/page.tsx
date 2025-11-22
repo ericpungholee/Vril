@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowRight, Sparkles, Upload, Image as ImageIcon, Box, Boxes, X } from "lucide-react";
-import LoadingOverlay from "@/components/LoadingOverlay";
+import { useLoading } from "@/providers/LoadingProvider";
 
 export default function Home() {
   const router = useRouter();
+  const { startLoading } = useLoading();
   const [prompt, setPrompt] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -34,6 +35,7 @@ export default function Home() {
     if (!prompt.trim()) return;
     
     setIsGenerating(true);
+    startLoading();
 
     try {
       // Mock API call to backend
@@ -52,7 +54,7 @@ export default function Home() {
       await Promise.all([apiCall, delay]);
       
       // Navigate immediately - the product page will handle the exit animation
-      router.push("/product?transition=true");
+      router.push("/product");
       
     } catch (error) {
       console.error("Generation failed:", error);
@@ -128,9 +130,8 @@ export default function Home() {
   return (
     <div className="relative flex flex-col items-center justify-center h-full p-4 md:p-8 max-w-4xl mx-auto w-full overflow-hidden">
       
-      {/* Loading Overlay */}
-      <LoadingOverlay isVisible={isGenerating} />
-
+      {/* Loading Overlay (managed globally via provider now, but we keep state for button disabled) */}
+      
       {/* Background Logo Vector Animation */}
       <div className={`
         absolute inset-0 flex items-center justify-center z-0 pointer-events-none
