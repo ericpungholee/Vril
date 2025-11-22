@@ -20,11 +20,17 @@ function Package3D({ packageType, dimensions, color = "#93c5fd", modelUrl }: Pac
   const meshRef = useRef<THREE.Mesh>(null)
   const { width, height, depth } = dimensions
 
-  // Normalize dimensions for display
-  const scale = 2 / Math.max(width, height, depth)
-  const w = width * scale
-  const h = height * scale
-  const d = depth * scale
+  // Use a fixed scale factor to convert mm to Three.js units
+  // This ensures each dimension is independent and doesn't affect others
+  const fixedScale = 0.01 // 1mm = 0.01 Three.js units
+  const w = width * fixedScale
+  const h = height * fixedScale
+  const d = depth * fixedScale
+  
+  // Use a fixed reference dimension for view scaling to prevent visual changes
+  // when individual dimensions change. This keeps the view stable.
+  const fixedReferenceDimension = 200 // mm
+  const viewScale = 2 / (fixedReferenceDimension * fixedScale)
 
   useFrame((state) => {
     if (meshRef.current) {
@@ -35,7 +41,7 @@ function Package3D({ packageType, dimensions, color = "#93c5fd", modelUrl }: Pac
   if (modelUrl) {
     return (
       <group ref={meshRef as any}>
-        <Gltf src={modelUrl} scale={scale * 2} />
+        <Gltf src={modelUrl} scale={viewScale * 2} />
       </group>
     )
   }
@@ -51,20 +57,24 @@ function Package3D({ packageType, dimensions, color = "#93c5fd", modelUrl }: Pac
         )
 
       case "cylinder":
+        // For cylinder, width represents diameter, so radius is width/2
+        // Use fixed scale so changing height doesn't affect radius
+        const radius = (width * fixedScale) / 2
+        const cylinderHeight = height * fixedScale
         return (
           <group ref={meshRef}>
             {/* Main cylinder body */}
             <mesh castShadow receiveShadow>
-              <cylinderGeometry args={[w / 2, w / 2, h, 32]} />
+              <cylinderGeometry args={[radius, radius, cylinderHeight, 32]} />
               <meshStandardMaterial color={color} roughness={0.3} metalness={0.1} />
             </mesh>
             {/* Top and bottom caps */}
-            <mesh position={[0, h/2 + 0.01, 0]} castShadow receiveShadow>
-              <cylinderGeometry args={[w / 2, w / 2, 0.02, 32]} />
+            <mesh position={[0, cylinderHeight/2 + 0.01, 0]} castShadow receiveShadow>
+              <cylinderGeometry args={[radius, radius, 0.02, 32]} />
               <meshStandardMaterial color={color} roughness={0.3} metalness={0.1} />
             </mesh>
-            <mesh position={[0, -h/2 - 0.01, 0]} castShadow receiveShadow>
-              <cylinderGeometry args={[w / 2, w / 2, 0.02, 32]} />
+            <mesh position={[0, -cylinderHeight/2 - 0.01, 0]} castShadow receiveShadow>
+              <cylinderGeometry args={[radius, radius, 0.02, 32]} />
               <meshStandardMaterial color={color} roughness={0.3} metalness={0.1} />
             </mesh>
           </group>

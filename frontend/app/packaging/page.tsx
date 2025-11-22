@@ -56,7 +56,6 @@ export default function Packaging() {
 
   const packageTypes: { type: PackageType; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { type: "box", label: "Box", icon: Box },
-    { type: "bag", label: "Bag", icon: ShoppingBag },
     { type: "cylinder", label: "Cylinder", icon: CylinderIcon },
   ];
 
@@ -66,7 +65,22 @@ export default function Packaging() {
   };
 
   const handleDimensionChange = (key: keyof PackageDimensions, value: number) => {
-    setDimensions((prev) => ({ ...prev, [key]: value }));
+    // Ensure value is valid and only update the specific dimension
+    // This function explicitly updates ONLY the specified dimension key
+    // and leaves all other dimensions completely unchanged
+    const validValue = isNaN(value) || value < 0 ? 0 : value;
+    setDimensions((prev) => {
+      // Explicitly preserve all other dimensions and only update the specified one
+      // This ensures X, Y, and Z are completely independent
+      const newDimensions = {
+        width: prev.width,   // X - preserved unless key is "width"
+        height: prev.height,  // Y - preserved unless key is "height"
+        depth: prev.depth,    // Z - preserved unless key is "depth"
+      };
+      // Only update the dimension that was requested
+      newDimensions[key] = validValue;
+      return newDimensions;
+    });
   };
 
   return (
@@ -195,68 +209,158 @@ export default function Packaging() {
             <Card className="p-4 space-y-4">
               <h3 className="text-sm font-semibold text-foreground">Dimensions (mm)</h3>
 
-              {/* Width */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs">Width</Label>
-                  <Input
-                    type="number"
-                    value={dimensions.width}
-                    onChange={(e) => handleDimensionChange("width", Number(e.target.value))}
-                    className="w-16 h-7 text-xs"
-                  />
-                </div>
-                <Slider
-                  value={[dimensions.width]}
-                  onValueChange={([value]) => handleDimensionChange("width", value)}
-                  min={20}
-                  max={300}
-                  step={5}
-                  className="w-full"
-                />
-              </div>
+              {packageType === "box" ? (
+                <>
+                  {/* X (Width) - Only edits width */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">X</Label>
+                      <Input
+                        type="number"
+                        value={dimensions.width}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          if (!isNaN(val) && val >= 0) {
+                            handleDimensionChange("width", val);
+                          }
+                        }}
+                        className="w-16 h-7 text-xs"
+                        min={0}
+                      />
+                    </div>
+                    <Slider
+                      value={[dimensions.width]}
+                      onValueChange={([value]) => handleDimensionChange("width", value)}
+                      min={20}
+                      max={300}
+                      step={5}
+                      className="w-full"
+                    />
+                  </div>
 
-              {/* Height */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs">Height</Label>
-                  <Input
-                    type="number"
-                    value={dimensions.height}
-                    onChange={(e) => handleDimensionChange("height", Number(e.target.value))}
-                    className="w-16 h-7 text-xs"
-                  />
-                </div>
-                <Slider
-                  value={[dimensions.height]}
-                  onValueChange={([value]) => handleDimensionChange("height", value)}
-                  min={20}
-                  max={400}
-                  step={5}
-                  className="w-full"
-                />
-              </div>
+                  {/* Y (Height) - Only edits height */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Y</Label>
+                      <Input
+                        type="number"
+                        value={dimensions.height}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          if (!isNaN(val) && val >= 0) {
+                            handleDimensionChange("height", val);
+                          }
+                        }}
+                        className="w-16 h-7 text-xs"
+                        min={0}
+                      />
+                    </div>
+                    <Slider
+                      value={[dimensions.height]}
+                      onValueChange={([value]) => handleDimensionChange("height", value)}
+                      min={20}
+                      max={400}
+                      step={5}
+                      className="w-full"
+                    />
+                  </div>
 
-              {/* Depth */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs">Depth</Label>
-                  <Input
-                    type="number"
-                    value={dimensions.depth}
-                    onChange={(e) => handleDimensionChange("depth", Number(e.target.value))}
-                    className="w-16 h-7 text-xs"
-                  />
-                </div>
-                <Slider
-                  value={[dimensions.depth]}
-                  onValueChange={([value]) => handleDimensionChange("depth", value)}
-                  min={20}
-                  max={300}
-                  step={5}
-                  className="w-full"
-                />
-              </div>
+                  {/* Z (Depth) - Only edits depth, does NOT affect X (width) or Y (height) */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Z</Label>
+                      <Input
+                        type="number"
+                        value={dimensions.depth}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          if (!isNaN(val) && val >= 0) {
+                            // Only update depth, X (width) and Y (height) remain unchanged
+                            handleDimensionChange("depth", val);
+                          }
+                        }}
+                        className="w-16 h-7 text-xs"
+                        min={0}
+                      />
+                    </div>
+                    <Slider
+                      value={[dimensions.depth]}
+                      onValueChange={([value]) => {
+                        // Only update depth, X (width) and Y (height) remain unchanged
+                        handleDimensionChange("depth", value);
+                      }}
+                      min={20}
+                      max={300}
+                      step={5}
+                      className="w-full"
+                    />
+                  </div>
+                </>
+              ) : packageType === "cylinder" ? (
+                <>
+                  {/* Radius - Only edits radius (stored as width/diameter) */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Radius</Label>
+                      <Input
+                        type="number"
+                        value={dimensions.width / 2}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          if (!isNaN(val) && val >= 0) {
+                            // Only update width (diameter = 2 * radius), height and depth remain unchanged
+                            handleDimensionChange("width", val * 2);
+                          }
+                        }}
+                        className="w-16 h-7 text-xs"
+                        min={0}
+                      />
+                    </div>
+                    <Slider
+                      value={[dimensions.width / 2]}
+                      onValueChange={([value]) => {
+                        // Only update width (diameter = 2 * radius), height remains unchanged
+                        handleDimensionChange("width", value * 2);
+                      }}
+                      min={10}
+                      max={150}
+                      step={5}
+                      className="w-full"
+                    />
+                  </div>
+
+                  {/* Height - Only edits height */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Height</Label>
+                      <Input
+                        type="number"
+                        value={dimensions.height}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          if (!isNaN(val) && val >= 0) {
+                            // Only update height, radius (width) remains unchanged
+                            handleDimensionChange("height", val);
+                          }
+                        }}
+                        className="w-16 h-7 text-xs"
+                        min={0}
+                      />
+                    </div>
+                    <Slider
+                      value={[dimensions.height]}
+                      onValueChange={([value]) => {
+                        // Only update height, radius (width) remains unchanged
+                        handleDimensionChange("height", value);
+                      }}
+                      min={20}
+                      max={400}
+                      step={5}
+                      className="w-full"
+                    />
+                  </div>
+                </>
+              ) : null}
             </Card>
 
             {/* Dieline Info */}

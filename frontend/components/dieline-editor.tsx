@@ -19,6 +19,61 @@ export function DielineEditor({ dielines, onDielineChange, editable = true }: Di
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 })
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const hasInitialized = useRef(false)
+  const initialDielinesRef = useRef<DielinePath[] | null>(null)
+
+  // Only auto-fit on initial load, preserve view when dielines change
+  // Track the first set of dielines we see, and only initialize once
+  useEffect(() => {
+    if (!dielines.length) return
+
+    // Only initialize if we haven't initialized before AND we haven't seen dielines yet
+    // This ensures we only initialize once, even if dimensions change (including Z/depth)
+    if (!hasInitialized.current && initialDielinesRef.current === null) {
+      hasInitialized.current = true
+      initialDielinesRef.current = dielines
+      
+      // Calculate bounds for initial fit
+      let minX = Number.POSITIVE_INFINITY
+      let minY = Number.POSITIVE_INFINITY
+      let maxX = Number.NEGATIVE_INFINITY
+      let maxY = Number.NEGATIVE_INFINITY
+
+      dielines.forEach((path) => {
+        path.points.forEach((point) => {
+          minX = Math.min(minX, point.x)
+          minY = Math.min(minY, point.y)
+          maxX = Math.max(maxX, point.x)
+          maxY = Math.max(maxY, point.y)
+        })
+      })
+
+      const contentWidth = maxX - minX
+      const contentHeight = maxY - minY
+      
+      // Only auto-fit if content is actually visible (has valid dimensions)
+      if (contentWidth > 0 && contentHeight > 0) {
+        const centerX = (minX + maxX) / 2
+        const centerY = (minY + maxY) / 2
+
+        // Calculate scale to fit content with padding
+        const padding = 50
+        const scaleX = (1200 - padding * 2) / contentWidth
+        const scaleY = (800 - padding * 2) / contentHeight
+        const newScale = Math.min(scaleX, scaleY, 1)
+
+        // Center the content
+        const newOffsetX = 600 - centerX * newScale
+        const newOffsetY = 400 - centerY * newScale
+
+        setScale(newScale)
+        setOffset({ x: newOffsetX, y: newOffsetY })
+      }
+    }
+    // After initialization, we NEVER change scale/offset when dielines change
+    // This preserves the user's view when dimensions are edited (X, Y, or Z)
+    // even if the dieline bounding box changes size
+  }, [dielines])
 
   useEffect(() => {
     const canvas = canvasRef.current

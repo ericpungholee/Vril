@@ -26,13 +26,17 @@ export function MiniDielineHud({ dielines }: MiniDielineHudProps) {
 
   const width = maxX - minX
   const height = maxY - minY
-  const padding = Math.max(width, height) * 0.1
+  // Use fixed padding percentage to prevent visual shifts when one dimension changes
+  // This ensures the viewBox doesn't change based on which dimension is largest
+  const paddingPercent = 0.1
+  const paddingX = width * paddingPercent
+  const paddingY = height * paddingPercent
 
-  // Calculate viewBox with padding
-  const viewBoxX = minX - padding
-  const viewBoxY = minY - padding
-  const viewBoxWidth = width + padding * 2
-  const viewBoxHeight = height + padding * 2
+  // Calculate viewBox with independent padding for each axis
+  const viewBoxX = minX - paddingX
+  const viewBoxY = minY - paddingY
+  const viewBoxWidth = width + paddingX * 2
+  const viewBoxHeight = height + paddingY * 2
 
   return (
     <div className="absolute bottom-4 right-4 bg-card/95 backdrop-blur-sm border border-border rounded-lg p-2 shadow-lg">
@@ -61,7 +65,7 @@ export function MiniDielineHud({ dielines }: MiniDielineHudProps) {
               d={pathString + (path.closed ? " Z" : "")}
               fill="none"
               stroke={strokeColor}
-              strokeWidth={viewBoxWidth * 0.005}
+              strokeWidth={Math.min(viewBoxWidth, viewBoxHeight) * 0.005}
               strokeLinecap="round"
               strokeLinejoin="round"
             />
