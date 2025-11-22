@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from app.endpoints.trellis.router import router as trellis_router
+from app.endpoints.chat.router import router as chat_router
+from app.endpoints.images.router import router as images_router
 import logging
 
 # Configure logging
@@ -12,6 +14,8 @@ app = FastAPI(title="Trellis 3D Generation API")
 
 # Include routers
 app.include_router(trellis_router)
+app.include_router(chat_router)
+app.include_router(images_router)
 
 @app.get("/")
 def read_root():
