@@ -1,8 +1,14 @@
 import os
+import sys
 import time
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from main import app
 from app.core.config import settings
