@@ -1,22 +1,35 @@
 #!/bin/bash
 # Manual end-to-end test script for product pipeline
 # Usage: 
-#   ./test_pipeline_manual.sh                    # Use default (gemini-3-pro-image-preview)
-#   USE_FLASH=1 ./test_pipeline_manual.sh        # Use gemini-2.0-flash-exp with 1K images
+#   ./test_pipeline_manual.sh                    # Use default (gemini-3-pro-image-preview, 3 images)
+#   USE_FLASH=1 ./test_pipeline_manual.sh        # Use gemini-2.5-flash-exp with 1K images (3 images)
+#   QUICK=1 ./test_pipeline_manual.sh            # Quick test with 1 image only
+#   USE_FLASH=1 QUICK=1 ./test_pipeline_manual.sh # Flash model with 1 image (fastest)
 
 set -e
+
+# Image count configuration
+if [ "$QUICK" = "1" ]; then
+  IMAGE_COUNT=1
+  echo "⚡ QUICK MODE: Using 1 image only"
+else
+  IMAGE_COUNT=${IMAGE_COUNT:-3}
+  echo "📸 Using $IMAGE_COUNT images"
+fi
 
 # Model configuration
 if [ "$USE_FLASH" = "1" ]; then
   export GEMINI_IMAGE_MODEL="gemini-2.5-flash-exp"
   export GEMINI_IMAGE_SIZE="1K"
+  export GEMINI_IMAGE_ASPECT_RATIO="1:1"
   export GEMINI_THINKING_LEVEL=""
-  echo "🔧 Using Flash 2.0 model (1K images, no thinking)"
+  echo "🔧 Using Flash 2.5 model (1K images, 1:1 ratio, no thinking)"
 else
   export GEMINI_IMAGE_MODEL="${GEMINI_IMAGE_MODEL:-gemini-3-pro-image-preview}"
   export GEMINI_IMAGE_SIZE="${GEMINI_IMAGE_SIZE:-4K}"
+  export GEMINI_IMAGE_ASPECT_RATIO="${GEMINI_IMAGE_ASPECT_RATIO:-1:1}"
   export GEMINI_THINKING_LEVEL="${GEMINI_THINKING_LEVEL:-low}"
-  echo "🔧 Using Gemini 3 Pro model (${GEMINI_IMAGE_SIZE} images, thinking: ${GEMINI_THINKING_LEVEL})"
+  echo "🔧 Using Gemini 3 Pro model (${GEMINI_IMAGE_SIZE} images, ${GEMINI_IMAGE_ASPECT_RATIO} ratio, thinking: ${GEMINI_THINKING_LEVEL})"
 fi
 
 # Restart backend with new env vars
@@ -24,6 +37,7 @@ echo "♻️  Restarting backend with updated config..."
 docker compose -f backend/docker-compose.yml down
 GEMINI_IMAGE_MODEL=$GEMINI_IMAGE_MODEL \
 GEMINI_IMAGE_SIZE=$GEMINI_IMAGE_SIZE \
+GEMINI_IMAGE_ASPECT_RATIO=$GEMINI_IMAGE_ASPECT_RATIO \
 GEMINI_THINKING_LEVEL=$GEMINI_THINKING_LEVEL \
   docker compose -f backend/docker-compose.yml up -d fastapi_app
 
@@ -32,10 +46,10 @@ sleep 3
 echo "🧹 Clearing Redis state..."
 docker compose -f backend/docker-compose.yml exec redis redis-cli FLUSHDB
 
-echo "🚀 Starting /create flow..."
+echo "🚀 Starting /create flow with $IMAGE_COUNT image(s)..."
 curl -X POST http://localhost:8000/product/create \
   -H "Content-Type: application/json" \
-  -d '{"prompt": "sleek reusable water bottle with engraved logo, hero product shot", "image_count": 3}' \
+  -d "{\"prompt\": \"sleek reusable water bottle with engraved logo, hero product shot\", \"image_count\": $IMAGE_COUNT}" \
   | jq
 
 echo ""
