@@ -43,21 +43,44 @@ echo "⏳ Polling status every 5 seconds (Gemini takes ~30s, Trellis takes 3-5 m
 echo "Press Ctrl+C to stop polling"
 echo ""
 
+START_TIME=$(date +%s)
+
 while true; do
   STATUS=$(curl -s http://localhost:8000/product/status | jq -r '.status')
   PROGRESS=$(curl -s http://localhost:8000/product/status | jq -r '.progress')
   MESSAGE=$(curl -s http://localhost:8000/product/status | jq -r '.message')
   
-  echo "[$(date +%H:%M:%S)] Status: $STATUS | Progress: $PROGRESS% | $MESSAGE"
+  ELAPSED=$(($(date +%s) - START_TIME))
+  echo "[$(date +%H:%M:%S)] [${ELAPSED}s] Status: $STATUS | Progress: $PROGRESS% | $MESSAGE"
   
   if [ "$STATUS" = "complete" ] || [ "$STATUS" = "error" ]; then
-    echo ""
-    echo "✅ Pipeline finished!"
-    curl -s http://localhost:8000/product | jq
+    TOTAL_TIME=$(($(date +%s) - START_TIME))
+    MINUTES=$((TOTAL_TIME / 60))
+    SECONDS=$((TOTAL_TIME % 60))
     
     echo ""
-    echo "📁 Check artifacts at: backend/tests/artifacts/"
-    ls -ltrh backend/tests/artifacts/
+    echo "="==========================================================================
+    if [ "$STATUS" = "complete" ]; then
+      echo "✅ PIPELINE COMPLETE!"
+    else
+      echo "❌ PIPELINE FAILED!"
+    fi
+    echo "⏱️  Total time: ${TOTAL_TIME}s (${MINUTES}m ${SECONDS}s)"
+    echo "="==========================================================================
+    
+    # Get product state
+    PRODUCT_JSON=$(curl -s http://localhost:8000/product)
+    MODEL_FILE=$(echo "$PRODUCT_JSON" | jq -r '.trellis_output.model_file // "none"')
+    IMAGE_COUNT=$(echo "$PRODUCT_JSON" | jq -r '.images | length')
+    
+    echo ""
+    echo "📦 GLB Model: ${MODEL_FILE:0:80}..."
+    echo "🖼️  Images generated: $IMAGE_COUNT"
+    echo ""
+    echo "📁 Artifacts saved to:"
+    ls -ltrh backend/tests/artifacts/ | tail -5
+    echo ""
+    echo "="==========================================================================
     break
   fi
   

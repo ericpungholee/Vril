@@ -154,11 +154,11 @@ def test_product_create_flow_real(api_client):
     elapsed = time.time() - start_time
     model_url = state["trellis_output"]["model_file"]
     
-    print(f"\n✅ CREATE FLOW COMPLETE")
+    print("\n✅ CREATE FLOW COMPLETE")
     print(f"⏱️  Total time: {elapsed:.1f}s ({elapsed/60:.1f} minutes)")
     print(f"📦 Model file: {model_url[:80]}..." if len(model_url) > 80 else f"📦 Model file: {model_url}")
     print(f"🖼️  Images: {len(state['images'])} generated")
-    print(f"📁 Artifacts saved to: backend/tests/artifacts/")
+    print("📁 Artifacts saved to: backend/tests/artifacts/")
     print("="*80 + "\n")
     
     assert state["trellis_output"]["model_file"]
@@ -191,11 +191,11 @@ def test_product_edit_flow_real(api_client):
     elapsed = time.time() - start_time
     model_url = state["trellis_output"]["model_file"]
     
-    print(f"\n✅ EDIT FLOW COMPLETE")
+    print("\n✅ EDIT FLOW COMPLETE")
     print(f"⏱️  Total time: {elapsed:.1f}s ({elapsed/60:.1f} minutes)")
     print(f"📦 Model file: {model_url[:80]}..." if len(model_url) > 80 else f"📦 Model file: {model_url}")
     print(f"🖼️  Total iterations: {len(state['iterations'])}")
-    print(f"📁 Artifacts saved to: backend/tests/artifacts/")
+    print("📁 Artifacts saved to: backend/tests/artifacts/")
     print("="*80 + "\n")
     
     assert state["iterations"][-1]["type"] == "edit"
