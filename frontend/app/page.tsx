@@ -224,7 +224,7 @@ export default function Home() {
                 <Button 
                   variant="outline" 
                   size="icon" 
-                  className="h-9 w-9 rounded-lg border-black hover:bg-background cursor-pointer" 
+                  className="h-9 w-9 rounded-lg border-black hover:bg-background hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer" 
                   title="Upload reference image"
                   onClick={(e) => {
                     e.stopPropagation();
