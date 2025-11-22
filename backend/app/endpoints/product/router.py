@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Set
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -17,6 +18,7 @@ from app.services.product_pipeline import product_pipeline_service
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/product", tags=["product"])
+_background_tasks: Set[asyncio.Task] = set()
 
 
 class ProductCreateRequest(BaseModel):
@@ -31,6 +33,12 @@ class ProductEditRequest(BaseModel):
 def _ensure_not_busy(state: ProductState) -> None:
     if state.in_progress:
         raise HTTPException(status_code=409, detail="Generation already running")
+
+
+def _track_background_task(task: asyncio.Task) -> None:
+    """Keep a reference to background work so it isn’t GC’d prematurely."""
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 
 @router.post("/create")
@@ -56,7 +64,8 @@ async def start_create(request: ProductCreateRequest):
     payload = ProductStatus(status="pending", progress=0, message="Preparing product generation")
     save_product_status(payload)
 
-    asyncio.create_task(product_pipeline_service.run_create(request.prompt, request.image_count))
+    task = asyncio.create_task(product_pipeline_service.run_create(request.prompt, request.image_count))
+    _track_background_task(task)
     return payload.model_dump(mode="json")
 
 
@@ -80,7 +89,8 @@ async def start_edit(request: ProductEditRequest):
     payload = ProductStatus(status="pending", progress=0, message="Preparing edit request")
     save_product_status(payload)
 
-    asyncio.create_task(product_pipeline_service.run_edit(request.prompt))
+    task = asyncio.create_task(product_pipeline_service.run_edit(request.prompt))
+    _track_background_task(task)
     return payload.model_dump(mode="json")
 
 

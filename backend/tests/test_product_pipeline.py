@@ -1,4 +1,11 @@
+import sys
+from pathlib import Path
+
 import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from app.models.product_state import (
     ProductState,
@@ -86,8 +93,8 @@ async def test_edit_flow_uses_previous_images(monkeypatch):
     state = get_product_state()
     status = get_product_status()
 
-    assert len(state.iterations) == 1 or len(state.iterations) == 2
-    assert state.iterations[-1].type == "edit"
+    assert len(state.iterations) == 1
+    assert state.iterations[0].type == "edit"
     assert state.trellis_output.model_file == trellis_data["model_file"]
     assert status.status == "complete"
     assert status.model_file == trellis_data["model_file"]
