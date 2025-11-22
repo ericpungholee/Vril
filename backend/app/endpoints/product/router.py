@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -32,12 +31,6 @@ class ProductEditRequest(BaseModel):
 def _ensure_not_busy(state: ProductState) -> None:
     if state.in_progress:
         raise HTTPException(status_code=409, detail="Generation already running")
-
-
-def _emit_status(status: str, message: str) -> Dict[str, Any]:
-    payload = ProductStatus(status=status, progress=0, message=message)
-    save_product_status(payload)
-    return payload.model_dump(mode="json")
 
 
 @router.post("/create")
