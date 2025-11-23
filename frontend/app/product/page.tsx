@@ -47,16 +47,26 @@ function ProductPage() {
       const iterationId = latestIteration?.id;
       const remoteModelUrl = state.trellis_output?.model_file;
       
-      // Only skip model loading if we already have this exact iteration AND a model URL loaded
-      if (iterationId && latestIterationIdRef.current === iterationId && currentModelUrl) {
-        console.log("[ProductPage] ♻️ Same iteration, skipping model reload");
-        setProductState(state);
+      // Always update product state
+      setProductState(state);
+      
+      // Check if state shows in_progress - if so, resume polling FIRST
+      if (state.in_progress) {
+        console.log("[ProductPage] 🔄 Generation in progress - resuming polling");
+        setIsEditInProgress(true);
+        // Don't load model yet - wait for generation to complete
         return;
       }
       
-      setProductState(state);
+      // Only skip model loading if we already have this exact iteration AND a model URL loaded
+      if (iterationId && latestIterationIdRef.current === iterationId && currentModelUrl) {
+        console.log("[ProductPage] ♻️ Same iteration, skipping model reload");
+        return;
+      }
       
+      // Load the model
       if (latestIteration && remoteModelUrl && iterationId) {
+        console.log("[ProductPage] 📦 Loading model:", iterationId);
         try {
           const cachedUrl = await getCachedModelUrl(iterationId, remoteModelUrl);
           applyModelUrl(cachedUrl, iterationId);
@@ -65,33 +75,14 @@ function ProductPage() {
           applyModelUrl(remoteModelUrl, iterationId);
         }
       }
-      
-      // Check if state shows in_progress - if so, resume polling
-      if (state.in_progress) {
-        console.log("[ProductPage] 🔄 Detected in-progress generation on mount, resuming...");
-        setIsEditInProgress(true);
-      }
     } catch (error) {
       console.error("Failed to load product state:", error);
     }
   }, [applyModelUrl, currentModelUrl]);
 
   useEffect(() => {
-    // On mount, first try to recover any stale states, then hydrate
-    const initialize = async () => {
-      try {
-        const recovery = await recoverProductState();
-        if (recovery.recovered) {
-          console.log("[ProductPage] ✅ Recovered from stale state:", recovery.message);
-        }
-      } catch (error) {
-        console.error("[ProductPage] Failed to recover state:", error);
-      }
-      
-      await hydrateProductState();
-    };
-    
-    initialize().finally(() => stopLoading());
+    // On mount, just hydrate - don't call recovery as it breaks ongoing generations
+    hydrateProductState().finally(() => stopLoading());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

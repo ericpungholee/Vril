@@ -96,6 +96,7 @@ function ProductAIChatPanel({
       return;
     }
 
+    console.log("[ProductAIChatPanel] 🔄 Starting status polling");
     let isCancelled = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
@@ -105,19 +106,22 @@ function ProductAIChatPanel({
         if (isCancelled) {
           return;
         }
+        console.log("[ProductAIChatPanel] 📊 Status:", status.status, status.progress);
         setEditStatus(status);
 
         if (status.status === "complete") {
+          console.log("[ProductAIChatPanel] ✅ Generation complete!");
           await onEditComplete();
           return;
         }
 
         if (status.status === "error") {
+          console.error("[ProductAIChatPanel] ❌ Generation error");
           onEditError();
           return;
         }
       } catch (error) {
-        console.error("Failed to poll product status:", error);
+        console.error("[ProductAIChatPanel] Failed to poll product status:", error);
       }
 
       if (!isCancelled) {

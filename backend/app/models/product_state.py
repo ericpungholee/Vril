@@ -49,6 +49,7 @@ class ProductState(BaseModel):
     status: str = "idle"
     message: Optional[str] = None
     in_progress: bool = False
+    generation_start_time: Optional[datetime] = None
     image_count: int = 3
     images: List[str] = Field(default_factory=list)
     trellis_output: Optional[TrellisArtifacts] = None
