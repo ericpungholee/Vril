@@ -32,7 +32,7 @@ class TrellisService:
         self,
         images: List[str],
         seed: int = 1337,
-        texture_size: int = 1536,
+        texture_size: int = 1024,
         mesh_simplify: float = 0.92,
         ss_sampling_steps: int = 14,
         ss_guidance_strength: float = 7.5,

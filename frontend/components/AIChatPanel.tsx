@@ -58,6 +58,7 @@ function ProductAIChatPanel({
   const [editStatus, setEditStatus] = useState<ProductStatus | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [rewindTarget, setRewindTarget] = useState<number | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
 
   const suggestions = [
     "Make the model taller",
@@ -73,6 +74,28 @@ function ProductAIChatPanel({
     setIsMounted(true);
   }, []);
 
+  // Track elapsed time during generation - use backend's generation_started_at if available
+  useEffect(() => {
+    if (!isEditInProgress) {
+      setElapsedTime(0);
+      return;
+    }
+
+    // Use backend start time if available, otherwise use current time
+    const startTime = productState?.generation_started_at 
+      ? new Date(productState.generation_started_at).getTime()
+      : Date.now();
+    
+    // Set initial elapsed time immediately
+    setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
+
+    const interval = setInterval(() => {
+      setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isEditInProgress, productState?.generation_started_at]);
+
   // Poll backend status while edit is running
   useEffect(() => {
     if (!isEditInProgress) {
@@ -80,6 +103,7 @@ function ProductAIChatPanel({
       return;
     }
 
+    console.log("[ProductAIChatPanel] 🔄 Starting status polling");
     let isCancelled = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
@@ -89,19 +113,22 @@ function ProductAIChatPanel({
         if (isCancelled) {
           return;
         }
+        console.log("[ProductAIChatPanel] 📊 Status:", status.status, status.progress);
         setEditStatus(status);
 
         if (status.status === "complete") {
+          console.log("[ProductAIChatPanel] ✅ Generation complete!");
           await onEditComplete();
           return;
         }
 
         if (status.status === "error") {
+          console.error("[ProductAIChatPanel] ❌ Generation error");
           onEditError();
           return;
         }
       } catch (error) {
-        console.error("Failed to poll product status:", error);
+        console.error("[ProductAIChatPanel] Failed to poll product status:", error);
       }
 
       if (!isCancelled) {
@@ -137,6 +164,15 @@ function ProductAIChatPanel({
       return `${hours}h ${remMinutes}m`;
     }
     return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
+  };
+
+  const formatElapsedTime = (seconds: number) => {
+    if (seconds < 60) {
+      return `${seconds}s`;
+    }
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}m ${secs.toString().padStart(2, '0')}s`;
   };
 
   const handleSubmit = async () => {
@@ -178,16 +214,30 @@ function ProductAIChatPanel({
       )}
 
       {isEditInProgress && editStatus && (
-        <div className="p-3 bg-blue-50 border-2 border-blue-500 rounded-lg text-xs space-y-2">
-          <div className="flex items-center gap-2 font-medium text-blue-900">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            {editStatus.message || "Processing edit..."}
+        <div className="p-3 bg-background border-4 border-black space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-wide">
+              <div className="w-3 h-3 border-2 border-black animate-spin" />
+              {editStatus.message || "Generating model..."}
+            </div>
+            <div className="font-mono text-sm font-bold tabular-nums">
+              {formatElapsedTime(elapsedTime)}
+            </div>
           </div>
-          <div className="w-full bg-blue-200 rounded-full h-1.5 overflow-hidden">
-            <div
-              className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
-              style={{ width: `${Math.min(editStatus.progress || 0, 100)}%` }}
-            />
+          <div className="space-y-1">
+            <div className="w-full h-6 border-2 border-black bg-white relative overflow-hidden">
+              <div
+                className="h-full bg-black transition-all duration-500 relative"
+                style={{ width: `${Math.min(editStatus.progress || 0, 100)}%` }}
+              >
+                <div className="absolute inset-0 opacity-20" style={{
+                  backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 2px, white 2px, white 4px)'
+                }} />
+              </div>
+            </div>
+            <div className="text-right font-mono text-xs font-bold tabular-nums">
+              {Math.min(editStatus.progress || 0, 100)}%
+            </div>
           </div>
         </div>
       )}

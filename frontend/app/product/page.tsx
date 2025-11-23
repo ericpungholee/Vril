@@ -13,7 +13,7 @@ import { ZoomIn, ZoomOut, Play, Pause, Settings, Sun, Warehouse, Eye, EyeOff } f
 import ModelViewer from "@/components/ModelViewer";
 import { AIChatPanel } from "@/components/AIChatPanel";
 import { useLoading } from "@/providers/LoadingProvider";
-import { getProductState } from "@/lib/product-api";
+import { getProductState, recoverProductState } from "@/lib/product-api";
 import { ProductState } from "@/lib/product-types";
 import { getCachedModelUrl } from "@/lib/model-cache";
 
@@ -45,16 +45,45 @@ function ProductPage() {
       const state = await getProductState();
       const latestIteration = state.iterations.at(-1);
       const iterationId = latestIteration?.id;
+      const remoteModelUrl = state.trellis_output?.model_file;
       
-      if (iterationId && latestIterationIdRef.current === iterationId) {
-        setProductState(state);
+      console.log("[ProductPage] 🔍 Hydrating state:", {
+        in_progress: state.in_progress,
+        has_model: !!remoteModelUrl,
+        iteration_id: iterationId,
+        current_loaded: latestIterationIdRef.current
+      });
+      
+      // Always update product state
+      setProductState(state);
+      
+      // Check if state shows in_progress - if so, resume polling
+      if (state.in_progress) {
+        console.log("[ProductPage] 🔄 Generation in progress - resuming polling");
+        setIsEditInProgress(true);
+        // Still try to load previous model if we don't have one loaded
+        if (!currentModelUrl && remoteModelUrl && iterationId) {
+          console.log("[ProductPage] 📦 Loading previous model during generation");
+          try {
+            const cachedUrl = await getCachedModelUrl(iterationId, remoteModelUrl);
+            applyModelUrl(cachedUrl, iterationId);
+          } catch (cacheError) {
+            console.error("Model cache failed:", cacheError);
+            applyModelUrl(remoteModelUrl, iterationId);
+          }
+        }
         return;
       }
       
-      setProductState(state);
-      const remoteModelUrl = state.trellis_output?.model_file;
+      // Only skip model loading if we already have this exact iteration AND a model URL loaded
+      if (iterationId && latestIterationIdRef.current === iterationId && currentModelUrl) {
+        console.log("[ProductPage] ♻️ Same iteration already loaded, skipping");
+        return;
+      }
       
-      if (latestIteration && remoteModelUrl && iterationId) {
+      // Load the model
+      if (remoteModelUrl && iterationId) {
+        console.log("[ProductPage] 📦 Loading model:", iterationId);
         try {
           const cachedUrl = await getCachedModelUrl(iterationId, remoteModelUrl);
           applyModelUrl(cachedUrl, iterationId);
@@ -62,13 +91,16 @@ function ProductPage() {
           console.error("Model cache failed:", cacheError);
           applyModelUrl(remoteModelUrl, iterationId);
         }
+      } else {
+        console.log("[ProductPage] ⚠️ No model to load:", { remoteModelUrl, iterationId });
       }
     } catch (error) {
       console.error("Failed to load product state:", error);
     }
-  }, [applyModelUrl]);
+  }, [applyModelUrl, currentModelUrl]);
 
   useEffect(() => {
+    // On mount, just hydrate - don't call recovery as it breaks ongoing generations
     hydrateProductState().finally(() => stopLoading());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

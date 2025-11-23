@@ -12,6 +12,7 @@ from app.models.product_state import (
     get_product_status,
     save_product_state,
     save_product_status,
+    _utcnow,
 )
 from app.services.product_pipeline import product_pipeline_service
 
@@ -54,6 +55,7 @@ async def start_create(request: ProductCreateRequest):
     state.status = "pending"
     state.message = "Preparing product generation"
     state.in_progress = True
+    state.generation_started_at = _utcnow()  # Track start time for frontend timer
     state.image_count = request.image_count
     state.images = []
     state.trellis_output = None
@@ -84,6 +86,7 @@ async def start_edit(request: ProductEditRequest):
     state.status = "pending"
     state.message = "Preparing edit request"
     state.in_progress = True
+    state.generation_started_at = _utcnow()  # Track start time for frontend timer
     save_product_state(state)
 
     payload = ProductStatus(status="pending", progress=0, message="Preparing edit request")
@@ -106,6 +109,43 @@ async def fetch_product_status():
     """Return the lightweight status payload (small + poll-friendly)."""
     status = get_product_status()
     return status.model_dump(mode="json")
+
+
+@router.post("/recover")
+async def recover_state():
+    """
+    Recover from stale in_progress state (e.g. after page reload during generation).
+    Checks if there are any active background tasks. If not, clears the in_progress flag.
+    """
+    state = get_product_state()
+    
+    # Check if there are any active background tasks
+    has_active_tasks = any(not task.done() for task in _background_tasks)
+    
+    if state.in_progress and not has_active_tasks:
+        logger.warning("[product-router] Recovering from stale in_progress state")
+        state.in_progress = False
+        state.status = "idle"
+        state.message = "Recovered from interrupted generation"
+        save_product_state(state)
+        
+        status_payload = ProductStatus(
+            status="idle",
+            progress=0,
+            message="Recovered from interrupted generation"
+        )
+        save_product_status(status_payload)
+        
+        return {
+            "recovered": True,
+            "message": "Cleared stale in_progress state"
+        }
+    
+    return {
+        "recovered": False,
+        "in_progress": state.in_progress,
+        "has_active_tasks": has_active_tasks
+    }
 
 
 @router.post("/rewind/{iteration_index}")
