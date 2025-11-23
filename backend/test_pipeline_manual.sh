@@ -21,15 +21,13 @@ fi
 if [ "$USE_FLASH" = "1" ]; then
   export GEMINI_IMAGE_MODEL="gemini-2.5-flash-exp"
   export GEMINI_IMAGE_SIZE="1K"
-  export GEMINI_IMAGE_ASPECT_RATIO="1:1"
   export GEMINI_THINKING_LEVEL=""
-  echo "🔧 Using Flash 2.5 model (1K images, 1:1 ratio, no thinking)"
+  echo "🔧 Using Flash 2.5 model (1K images, no thinking)"
 else
   export GEMINI_IMAGE_MODEL="${GEMINI_IMAGE_MODEL:-gemini-3-pro-image-preview}"
   export GEMINI_IMAGE_SIZE="${GEMINI_IMAGE_SIZE:-4K}"
-  export GEMINI_IMAGE_ASPECT_RATIO="${GEMINI_IMAGE_ASPECT_RATIO:-1:1}"
   export GEMINI_THINKING_LEVEL="${GEMINI_THINKING_LEVEL:-low}"
-  echo "🔧 Using Gemini 3 Pro model (${GEMINI_IMAGE_SIZE} images, ${GEMINI_IMAGE_ASPECT_RATIO} ratio, thinking: ${GEMINI_THINKING_LEVEL})"
+  echo "🔧 Using Gemini 3 Pro model (${GEMINI_IMAGE_SIZE} images, thinking: ${GEMINI_THINKING_LEVEL})"
 fi
 
 # Restart backend with new env vars
@@ -37,7 +35,6 @@ echo "♻️  Restarting backend with updated config..."
 docker compose -f backend/docker-compose.yml down
 GEMINI_IMAGE_MODEL=$GEMINI_IMAGE_MODEL \
 GEMINI_IMAGE_SIZE=$GEMINI_IMAGE_SIZE \
-GEMINI_IMAGE_ASPECT_RATIO=$GEMINI_IMAGE_ASPECT_RATIO \
 GEMINI_THINKING_LEVEL=$GEMINI_THINKING_LEVEL \
   docker compose -f backend/docker-compose.yml up -d fastapi_app
 
