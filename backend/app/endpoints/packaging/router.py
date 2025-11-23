@@ -51,8 +51,10 @@ async def generate_panel_texture(request: PanelGenerateRequest):
     
     state = get_packaging_state()
     
-    # DON'T clear old texture - keep it visible until new one is ready
-    # The new texture will atomically replace the old one when generation completes
+    # Detect create vs edit workflow
+    existing_texture = state.get_panel_texture(request.panel_id)
+    workflow = "edit" if existing_texture else "create"
+    old_texture_url = existing_texture.texture_url if existing_texture else None
     
     # Update state with current package info
     state.package_type = request.package_type
@@ -62,7 +64,7 @@ async def generate_panel_texture(request: PanelGenerateRequest):
     state.last_error = None
     save_packaging_state(state)
     
-    logger.info(f"[packaging-router] Starting texture generation for panel {request.panel_id}")
+    logger.info(f"[packaging-router] Starting {workflow} for panel {request.panel_id}")
     
     # Run generation in background
     async def _generate():
@@ -74,6 +76,8 @@ async def generate_panel_texture(request: PanelGenerateRequest):
                 panel_dimensions=request.panel_dimensions,
                 package_dimensions=request.package_dimensions,
                 reference_mockup=request.reference_mockup,
+                workflow=workflow,
+                old_texture_url=old_texture_url,
             )
             
             # Get fresh state to avoid race conditions
@@ -138,68 +142,124 @@ async def generate_all_panels(request: BulkPanelGenerateRequest):
     
     logger.info(f"[packaging-router] Starting bulk texture generation for {len(request.panel_ids)} panels")
     
-    # Run generation in background
+    # Run generation in background with two-phase approach
     async def _generate_all():
-        generated_textures = {}  # Accumulate here for atomic save
+        generated_textures = {}
         failed_panels = []
         
-        for panel_id in request.panel_ids:
-            try:
-                # Update state to show current panel being generated
-                current_state = get_packaging_state()
-                current_state.generating_panel = panel_id
-                save_packaging_state(current_state)
-                
-                logger.info(f"[packaging-router] Generating texture for panel {panel_id} ({len(generated_textures) + 1}/{len(request.panel_ids)})")
-                
-                panel_dimensions = request.panels_info.get(panel_id, {})
-                
-                texture_url = await panel_generation_service.generate_panel_texture(
-                    panel_id=panel_id,
+        # PHASE 1: Generate master panel (use old texture as reference if iterating)
+        master_panel_id = request.panel_ids[0] if request.panel_ids else None
+        if not master_panel_id:
+            logger.error("[packaging-router] No panels to generate")
+            final_state = get_packaging_state()
+            final_state.bulk_generation_in_progress = False
+            save_packaging_state(final_state)
+            return
+        
+        logger.info(f"[packaging-router] PHASE 1: Generating master panel '{master_panel_id}'")
+        
+        # Check if iterating (old texture exists)
+        existing_texture = state.get_panel_texture(master_panel_id)
+        workflow = "edit" if existing_texture else "create"
+        old_texture_url = existing_texture.texture_url if existing_texture else None
+        
+        logger.info(f"[packaging-router] Workflow: {workflow} (has_old_texture={bool(old_texture_url)})")
+        
+        try:
+            current_state = get_packaging_state()
+            current_state.generating_panel = master_panel_id
+            save_packaging_state(current_state)
+            
+            master_dimensions = request.panels_info.get(master_panel_id, {})
+            master_texture_url = await panel_generation_service.generate_panel_texture(
+                panel_id=master_panel_id,
+                prompt=request.prompt,
+                package_type=request.package_type,
+                panel_dimensions=master_dimensions,
+                package_dimensions=request.package_dimensions,
+                reference_mockup=request.reference_mockup,
+                workflow=workflow,
+                old_texture_url=old_texture_url,
+            )
+            
+            if master_texture_url:
+                generated_textures[master_panel_id] = PanelTexture(
+                    panel_id=master_panel_id,
+                    texture_url=master_texture_url,
                     prompt=request.prompt,
-                    package_type=request.package_type,
-                    panel_dimensions=panel_dimensions,
-                    package_dimensions=request.package_dimensions,
-                    reference_mockup=request.reference_mockup,
+                    dimensions=master_dimensions,
                 )
-                
-                # Update state after completing this panel
+                # Remove from generating list
                 current_state = get_packaging_state()
+                if master_panel_id in current_state.generating_panels:
+                    current_state.generating_panels.remove(master_panel_id)
+                    save_packaging_state(current_state)
+                logger.info(f"[packaging-router] ✅ Master panel generated (1/{len(request.panel_ids)})")
+            else:
+                failed_panels.append(master_panel_id)
+                logger.error(f"[packaging-router] ❌ Master panel generation failed")
+        except Exception as e:
+            logger.error(f"[packaging-router] Error generating master panel: {e}", exc_info=True)
+            failed_panels.append(master_panel_id)
+        
+        # PHASE 2: Parallelize remaining panels using master as reference
+        remaining_panels = request.panel_ids[1:]
+        if remaining_panels and master_panel_id in generated_textures:
+            logger.info(f"[packaging-router] PHASE 2: Generating {len(remaining_panels)} remaining panels in parallel")
+            
+            # Create parallel tasks
+            async def generate_panel(panel_id: str):
+                try:
+                    current_state = get_packaging_state()
+                    current_state.generating_panel = panel_id
+                    save_packaging_state(current_state)
+                    
+                    panel_dims = request.panels_info.get(panel_id, {})
+                    texture_url = await panel_generation_service.generate_panel_texture(
+                        panel_id=panel_id,
+                        prompt=request.prompt,
+                        package_type=request.package_type,
+                        panel_dimensions=panel_dims,
+                        package_dimensions=request.package_dimensions,
+                        reference_mockup=master_texture_url,  # Use master as reference
+                        workflow=workflow,  # Same workflow as master
+                        old_texture_url=None,  # Master is the reference now
+                    )
+                    
+                    if texture_url:
+                        # Remove from generating list
+                        current_state = get_packaging_state()
+                        if panel_id in current_state.generating_panels:
+                            current_state.generating_panels.remove(panel_id)
+                            save_packaging_state(current_state)
+                        return (panel_id, texture_url, panel_dims)
+                    else:
+                        return (panel_id, None, panel_dims)
+                except Exception as e:
+                    logger.error(f"[packaging-router] Error generating panel {panel_id}: {e}")
+                    return (panel_id, None, None)
+            
+            # Run in parallel
+            results = await asyncio.gather(*[generate_panel(pid) for pid in remaining_panels], return_exceptions=True)
+            
+            # Process results
+            for result in results:
+                if isinstance(result, Exception):
+                    logger.error(f"[packaging-router] Task exception: {result}")
+                    continue
                 
+                panel_id, texture_url, panel_dims = result
                 if texture_url:
-                    # Accumulate in local dict instead of saving immediately
                     generated_textures[panel_id] = PanelTexture(
                         panel_id=panel_id,
                         texture_url=texture_url,
                         prompt=request.prompt,
-                        dimensions=panel_dimensions,
+                        dimensions=panel_dims,
                     )
-                    
-                    # Remove from generating_panels list to show progress
-                    if panel_id in current_state.generating_panels:
-                        current_state.generating_panels.remove(panel_id)
-                        save_packaging_state(current_state)
-                    
-                    logger.info(f"[packaging-router] Successfully generated texture for panel {panel_id} ({len(generated_textures)}/{len(request.panel_ids)})")
                 else:
-                    logger.error(f"[packaging-router] Texture generation returned no image for panel {panel_id}")
                     failed_panels.append(panel_id)
-                    # Still remove from list even if failed
-                    if panel_id in current_state.generating_panels:
-                        current_state.generating_panels.remove(panel_id)
-                        save_packaging_state(current_state)
-                    
-            except Exception as e:
-                logger.error(f"[packaging-router] Error generating texture for panel {panel_id}: {e}", exc_info=True)
-                failed_panels.append(panel_id)
-                # Remove from list even on error
-                try:
-                    current_state = get_packaging_state()
-                    if panel_id in current_state.generating_panels:
-                        current_state.generating_panels.remove(panel_id)
-                        save_packaging_state(current_state)
-                except:
-                    pass
+            
+            logger.info(f"[packaging-router] ✅ Parallel generation complete: {len(generated_textures)-1}/{len(remaining_panels)} succeeded")
         
         # ATOMIC UPDATE: Save all textures at once
         final_state = get_packaging_state()

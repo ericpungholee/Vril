@@ -107,6 +107,22 @@ USER CUSTOMIZATION
 {user_prompt}
 """
 
+    # Iteration template (for editing existing designs with reference)
+    ITERATION_TEMPLATE = """Modify the attached panel design according to the user's request.
+
+Panel: {face_name}
+Size: {panel_width_mm}mm × {panel_height_mm}mm
+Aspect Ratio: {aspect_ratio_lock} (maintain exactly)
+
+RULES:
+- Keep the exact aspect ratio and dimensions
+- Apply the user's requested changes to the reference image
+- Maintain design continuity and quality
+- Output flat, print-ready panel texture
+
+USER REQUEST:
+{user_prompt}"""
+
     # Simple texture template (for basic requests without reference mockup)
     SIMPLE_TEMPLATE = """Generate a flat packaging panel texture with the following specifications:
 
@@ -386,12 +402,7 @@ OUTPUT: Generate exactly ONE flat panel texture at {aspect_ratio_lock} aspect ra
         panel_height_mm: float,
         user_prompt: str,
     ) -> str:
-        """
-        Build a simple prompt for basic texture generation without full context.
-        
-        This is a fallback when full box dimensions aren't available.
-        """
-        # Validate user prompt
+        """Build a simple prompt for basic texture generation without full context."""
         is_valid, error = self.validate_user_prompt(user_prompt)
         if not is_valid:
             raise ValueError(error)
@@ -399,8 +410,6 @@ OUTPUT: Generate exactly ONE flat panel texture at {aspect_ratio_lock} aspect ra
         panel_width_in = self.mm_to_inches(panel_width_mm)
         panel_height_in = self.mm_to_inches(panel_height_mm)
         aspect_ratio = self.calculate_aspect_ratio(panel_width_mm, panel_height_mm)
-        
-        # Generate scale and composition guidance
         scale_guidance = self.generate_scale_guidance(panel_width_mm, panel_height_mm, face_name)
         orientation = self.get_panel_orientation(panel_width_mm, panel_height_mm)
         panel_size_description = self.get_panel_size_description(panel_width_mm, panel_height_mm)
@@ -419,6 +428,28 @@ OUTPUT: Generate exactly ONE flat panel texture at {aspect_ratio_lock} aspect ra
         )
         
         return prompt
+    
+    def build_iteration_prompt(
+        self,
+        face_name: str,
+        panel_width_mm: float,
+        panel_height_mm: float,
+        user_prompt: str,
+    ) -> str:
+        """Build concise iteration prompt for editing existing designs."""
+        is_valid, error = self.validate_user_prompt(user_prompt)
+        if not is_valid:
+            raise ValueError(error)
+        
+        aspect_ratio = self.calculate_aspect_ratio(panel_width_mm, panel_height_mm)
+        
+        return self.ITERATION_TEMPLATE.format(
+            face_name=face_name,
+            panel_width_mm=int(panel_width_mm),
+            panel_height_mm=int(panel_height_mm),
+            aspect_ratio_lock=aspect_ratio,
+            user_prompt=user_prompt,
+        )
 
 
 # Global instance
