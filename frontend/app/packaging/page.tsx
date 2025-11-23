@@ -283,11 +283,13 @@ function Packaging() {
       const targetType = state.current_package_type || 'box';
       const shapeState = targetType === 'cylinder' ? state.cylinder_state : state.box_state;
       
-      // Use dimensions from the shape's state
-      const targetDimensions = shapeState.dimensions || DEFAULT_PACKAGE_DIMENSIONS[targetType];
+      // Use dimensions from the shape's state - backend guarantees valid dimensions
+      const targetDimensions = shapeState?.dimensions as PackageDimensions;
       
-      console.log("[Packaging] 📦 Restoring type:", targetType, "dimensions:", targetDimensions);
-      console.log("[Packaging] 📊 Full state - Box:", state.box_state, "Cylinder:", state.cylinder_state);
+      console.log("[Packaging] 📦 Restoring type:", targetType);
+      console.log("[Packaging] 📏 Restored dimensions:", targetDimensions);
+      console.log("[Packaging] 🎨 Restored textures:", Object.keys(shapeState?.panel_textures || {}));
+      console.log("[Packaging] 📊 Full state - Box dims:", state.box_state?.dimensions, "Cylinder dims:", state.cylinder_state?.dimensions);
       
       // Generate model for current shape type
       const newModel = generatePackageModel(targetType, targetDimensions);
@@ -398,11 +400,13 @@ function Packaging() {
     
     console.log("[Packaging] 📦 Switching from", packageType, "to", type);
     
-    // Get the saved state for the target shape type
+    // Get the saved state for the target shape type - use ONLY saved state
     const targetState = type === 'cylinder' ? packagingState.cylinder_state : packagingState.box_state;
-    const targetDimensions = targetState.dimensions || DEFAULT_PACKAGE_DIMENSIONS[type];
+    const targetDimensions = targetState?.dimensions as PackageDimensions;
     
-    console.log("[Packaging] 🔄 Loading saved state for", type, ":", targetDimensions);
+    console.log("[Packaging] 🔄 Loading saved state for", type);
+    console.log("[Packaging] 📏 Dimensions:", targetDimensions);
+    console.log("[Packaging] 🎨 Textures:", Object.keys(targetState?.panel_textures || {}));
     
     // Generate model for target shape with its saved dimensions
     const newModel = generatePackageModel(type, targetDimensions);
@@ -426,11 +430,12 @@ function Packaging() {
       }
     }
     setPanelTextures(cachedTextures);
+    console.log("[Packaging] ✅ Loaded", Object.keys(cachedTextures).length, "cached textures");
     
     // Persist type switch to backend
     try {
       await updatePackagingDimensions(type, targetDimensions);
-      console.log("[Packaging] ✅ Persisted package type switch");
+      console.log("[Packaging] ✅ Backend updated: type =", type, ", dims =", targetDimensions);
     } catch (err: unknown) {
       console.error("[Packaging] ❌ Failed to save package type:", err);
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -473,10 +478,27 @@ function Packaging() {
 
     setDimensions(prev => {
       const newDimensions = { ...prev, [key]: validValue };
+      // Update local packaging state to keep it in sync
+      setPackagingState(prevState => {
+        if (!prevState) return prevState;
+        
+        const updatedState = { ...prevState };
+        if (packageType === 'cylinder') {
+          updatedState.cylinder_state = {
+            ...prevState.cylinder_state,
+            dimensions: newDimensions
+          };
+        } else {
+          updatedState.box_state = {
+            ...prevState.box_state,
+            dimensions: newDimensions
+          };
+        }
+        return updatedState;
+      });
 
       // Debounced save to backend
       saveDimensionsDebounced(packageType, newDimensions);
-
       return newDimensions;
     });
   }, [packageType, saveDimensionsDebounced]);
@@ -507,6 +529,10 @@ function Packaging() {
         },
       };
     });
+    
+    // Update local packaging state to keep textures in sync
+    // Backend already saved the texture, we just update local state for shape switching
+    // Note: We'll re-hydrate from backend after generation completes to get full state
 
     // Backend already saved the texture, just show notification
     setShowTextureNotification({ panelId, show: true });
@@ -567,6 +593,20 @@ function Packaging() {
                   autoRotate={autoRotate}
                 />
 
+                {isGenerating && packagingState && (
+                  <div className="absolute top-4 left-4 z-40 bg-black/80 text-white px-4 py-3 rounded-lg shadow-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <div>
+                        <p className="text-sm font-semibold">Generating Textures</p>
+                        {packagingState.generating_panel && (
+                          <p className="text-xs opacity-80">Current: {packagingState.generating_panel}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {showTextureNotification?.show && (
                   <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-2 duration-300">
                     <div className="bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 border-2 border-green-700">
@@ -607,6 +647,8 @@ function Packaging() {
                 selectedPanelId={selectedPanelId}
                 packageModel={packageModel}
                 onTextureGenerated={handleTextureGenerated}
+                packagingState={packagingState}
+                isGenerating={isGenerating}
               />
 
               {/* Panel Selection */}
