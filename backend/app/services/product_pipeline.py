@@ -206,14 +206,6 @@ class ProductPipelineService:
             with urllib.request.urlopen(artifacts.model_file) as response:
                 glb_path.write_bytes(response.read())
             logger.info("[product-pipeline] ✓ Saved GLB model to %s (%.1f KB)", glb_path, glb_path.stat().st_size / 1024)
-            
-            # Download color video if available
-            if artifacts.color_video:
-                video_path = run_dir / "color.mp4"
-                logger.info(f"[product-pipeline] Downloading color video...")
-                with urllib.request.urlopen(artifacts.color_video) as response:
-                    video_path.write_bytes(response.read())
-                logger.info(f"[product-pipeline] ✓ Saved color video to {video_path}")
                 
         except Exception as exc:
             logger.warning(f"[product-pipeline] Failed to save Trellis artifacts: {exc}")

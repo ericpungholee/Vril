@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings
 from typing import Optional
 
 class Settings(BaseSettings):
-    REPLICATE_API_KEY: Optional[str] = None
+    FAL_KEY: Optional[str] = None
     
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"

@@ -1,8 +1,9 @@
-import replicate
+import fal_client
+import logging
+import os
 from typing import Optional, List
 from typing_extensions import TypedDict
 from app.core.config import settings
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -17,96 +18,120 @@ class TrellisOutput(TypedDict, total=False):
 
 class TrellisService:
     def __init__(self):
-        self.model = "firtoz/trellis:e8f6c45206993f297372f5436b90350817bd9b4a0d52d2a76df50c1c8afa2b3c"
-        self.api_token = settings.REPLICATE_API_KEY
-        if self.api_token:
+        self.api_key = settings.FAL_KEY
+        if self.api_key:
+            # Set environment variable for fal_client library
+            os.environ["FAL_KEY"] = self.api_key
             # Log first 10 chars for debugging (never log full API keys in production!)
-            logger.info(f"Replicate API key configured: {self.api_token[:10]}...")
+            logger.info(f"fal.ai API key configured: {self.api_key[:10]}...")
         else:
-            logger.warning("No Replicate API key found in settings")
+            logger.warning("No fal.ai API key found in settings")
     
     def generate_3d_asset(
         self,
         images: List[str],
         seed: int = 1337,
-        randomize_seed: bool = False,
         texture_size: int = 2048,
-        mesh_simplify: float = 0.96,
-        generate_color: bool = True,
-        generate_normal: bool = False,
-        generate_model: bool = True,
-        save_gaussian_ply: bool = False,
-        return_no_background: bool = True,
-        ss_sampling_steps: int = 26,
-        ss_guidance_strength: float = 8.0,
-        slat_sampling_steps: int = 26,
+        mesh_simplify: float = 0.94,
+        ss_sampling_steps: int = 16,
+        ss_guidance_strength: float = 7.5,
+        slat_sampling_steps: int = 16,
         slat_guidance_strength: float = 3.2
     ) -> TrellisOutput:
         """
-        Generate a 3D asset from input images using Trellis.
+        Generate a 3D asset from input images using Trellis via fal.ai.
+        
+        Note: Only the first image is used as fal.ai's Trellis API accepts single images.
+        
+        Parameters optimized for texture_size: 2048 (high-resolution):
+        - texture_size: 2048 (high-quality textures)
+        - mesh_simplify: 0.94 (more polygons to support detailed 2048 textures)
+        - ss_sampling_steps: 16 (better geometry for high-res, still 40% faster than 26)
+        - slat_sampling_steps: 16 (matches sparse structure quality)
+        - slat_guidance_strength: 3.2 (enhanced detail for high-res textures)
+        
+        Tradeoff: ~25% slower than minimal settings, but geometry quality matches texture detail.
         """
         try:
-            # Log API key status
-            logger.info(f"REPLICATE_API_KEY from settings: {settings.REPLICATE_API_KEY[:10] if settings.REPLICATE_API_KEY else 'NOT SET'}...")
-            logger.info(f"self.api_token: {self.api_token[:10] if self.api_token else 'NOT SET'}...")
+            if not images or len(images) == 0:
+                raise ValueError("No images provided")
+            
+            # Use only the first image (fal.ai accepts single image_url)
+            image_url = images[0]
+            if len(images) > 1:
+                logger.warning(f"Multiple images provided ({len(images)}), using only the first one")
             
             logger.info("-" * 80)
-            logger.info("TRELLIS SERVICE - Preparing input data:")
-            
-            input_data = {
-                "images": images,
-                "seed": seed,
-                "randomize_seed": randomize_seed,
-                "texture_size": texture_size,
-                "mesh_simplify": mesh_simplify,
-                "generate_color": generate_color,
-                "generate_normal": generate_normal,
-                "generate_model": generate_model,
-                "save_gaussian_ply": save_gaussian_ply,
-                "return_no_background": return_no_background,
-                "ss_sampling_steps": ss_sampling_steps,
-                "ss_guidance_strength": ss_guidance_strength,
-                "slat_sampling_steps": slat_sampling_steps,
-                "slat_guidance_strength": slat_guidance_strength
-            }
-            
-            # Log all input parameters
-            for key, value in input_data.items():
-                if key == "images":
-                    # Log only the count and first 100 chars of each image
-                    if isinstance(value, list):
-                        img_info = f"[{len(value)} image(s)]"
-                        if len(value) > 0:
-                            first_img = str(value[0])
-                            img_info += f" First: {first_img[:100]}..."
-                        logger.info(f"  {key}: {img_info}")
-                    else:
-                        logger.info(f"  {key}: [invalid format]")
-                else:
-                    logger.info(f"  {key}: {value}")
+            logger.info("TRELLIS SERVICE - Submitting request to fal.ai")
+            logger.info(f"  Image URL length: {len(image_url)}")
+            logger.info(f"  Image URL preview: {image_url[:100]}...")
+            logger.info(f"  seed: {seed}")
+            logger.info(f"  texture_size: {texture_size}")
+            logger.info(f"  mesh_simplify: {mesh_simplify}")
+            logger.info(f"  ss_sampling_steps: {ss_sampling_steps}")
+            logger.info(f"  ss_guidance_strength: {ss_guidance_strength}")
+            logger.info(f"  slat_sampling_steps: {slat_sampling_steps}")
+            logger.info(f"  slat_guidance_strength: {slat_guidance_strength}")
             logger.info("-" * 80)
             
-            # Create a client with the API token explicitly set
-            client = replicate.Client(api_token=self.api_token)
-            output = client.run(self.model, input=input_data)
+            # Submit request and get result using fal_client.subscribe
+            # This handles submission, polling, and result retrieval automatically
+            result = fal_client.subscribe(
+                "fal-ai/trellis",
+                arguments={
+                    "image_url": image_url,
+                    "seed": seed,
+                    "texture_size": texture_size,
+                    "mesh_simplify": mesh_simplify,
+                    "ss_sampling_steps": ss_sampling_steps,
+                    "ss_guidance_strength": ss_guidance_strength,
+                    "slat_sampling_steps": slat_sampling_steps,
+                    "slat_guidance_strength": slat_guidance_strength
+                },
+                with_logs=True,
+                on_queue_update=lambda update: self._handle_queue_update(update)
+            )
             
-            # Convert FileOutput objects to strings (URLs)
-            # Only include non-None values in the result
-            result = {}
-            for key, value in output.items():
-                if value is not None:
-                    if isinstance(value, list):
-                        # Only include list if it has items
-                        converted_list = [str(item) for item in value if item is not None]
-                        if converted_list:
-                            result[key] = converted_list
-                    else:
-                        result[key] = str(value)
+            logger.info("✓ Request completed successfully")
+            logger.info(f"Result keys: {list(result.keys()) if isinstance(result, dict) else 'not a dict'}")
+            logger.info(f"Full result: {result}")
             
-            logger.info(f"Successfully generated 3D asset: {result}")
-            return result
+            # Map fal.ai output to TrellisOutput schema
+            # fal.ai returns: {"model_mesh": {"url": "...", ...}, "timings": {...}}
+            output = {}
+            
+            if isinstance(result, dict):
+                # Check for model_mesh in the result
+                if "model_mesh" in result and result["model_mesh"]:
+                    model_mesh = result["model_mesh"]
+                    if isinstance(model_mesh, dict) and "url" in model_mesh:
+                        output["model_file"] = model_mesh["url"]
+                        logger.info(f"Model file URL: {output['model_file']}")
+                    elif isinstance(model_mesh, str):
+                        output["model_file"] = model_mesh
+                        logger.info(f"Model file URL: {output['model_file']}")
+            
+            if not output:
+                raise Exception(f"No valid output received from fal.ai. Result was: {result}")
+            
+            logger.info(f"Successfully generated 3D asset: {output}")
+            return output
+            
         except Exception as e:
+            logger.exception(f"Failed to generate 3D asset: {str(e)}")
             raise Exception(f"Failed to generate 3D asset: {str(e)}")
+    
+    def _handle_queue_update(self, update):
+        """Handle queue status updates and log progress."""
+        if hasattr(update, 'status'):
+            logger.info(f"Queue status: {update.status}")
+        if hasattr(update, 'logs') and update.logs:
+            for log in update.logs:
+                if hasattr(log, 'message'):
+                    logger.info(f"  Progress: {log.message}")
+                elif isinstance(log, dict) and 'message' in log:
+                    logger.info(f"  Progress: {log['message']}")
+                elif isinstance(log, str):
+                    logger.info(f"  Progress: {log}")
 
 trellis_service = TrellisService()
-

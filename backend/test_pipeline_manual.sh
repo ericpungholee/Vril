@@ -11,6 +11,26 @@
 
 set -e
 
+# Load .env file if it exists and variables aren't already set
+if [ -f backend/.env ]; then
+    echo "📋 Loading environment from backend/.env..."
+    export $(grep -v '^#' backend/.env | xargs)
+elif [ -f .env ]; then
+    echo "📋 Loading environment from .env..."
+    export $(grep -v '^#' .env | xargs)
+fi
+
+# Check required API keys
+if [ -z "$FAL_KEY" ]; then
+    echo "❌ ERROR: FAL_KEY not set. Please set it in .env or export it."
+    exit 1
+fi
+
+if [ -z "$GEMINI_API_KEY" ]; then
+    echo "❌ ERROR: GEMINI_API_KEY not set. Please set it in .env or export it."
+    exit 1
+fi
+
 # Image count configuration (default: 1)
 IMAGE_COUNT=${IMAGE_COUNT:-1}
 echo "📸 Using $IMAGE_COUNT image(s)"
@@ -30,10 +50,12 @@ echo "   - Image size: ${GEMINI_IMAGE_SIZE}"
 # Restart backend with new env vars
 echo "♻️  Restarting backend with updated config..."
 docker compose -f backend/docker-compose.yml down
+GEMINI_API_KEY=$GEMINI_API_KEY \
 GEMINI_PRO_MODEL=$GEMINI_PRO_MODEL \
 GEMINI_FLASH_MODEL=$GEMINI_FLASH_MODEL \
 GEMINI_IMAGE_SIZE=$GEMINI_IMAGE_SIZE \
 GEMINI_THINKING_LEVEL=$GEMINI_THINKING_LEVEL \
+FAL_KEY=$FAL_KEY \
 SAVE_ARTIFACTS_LOCALLY=true \
   docker compose -f backend/docker-compose.yml up -d fastapi_app
 

@@ -10,6 +10,13 @@ services:
     environment:
       - WATCH_FILES=true
       - REDIS_URL=redis://redis:6379/0
+      - FAL_KEY=${FAL_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_PRO_MODEL=${GEMINI_PRO_MODEL}
+      - GEMINI_FLASH_MODEL=${GEMINI_FLASH_MODEL}
+      - GEMINI_IMAGE_SIZE=${GEMINI_IMAGE_SIZE}
+      - GEMINI_THINKING_LEVEL=${GEMINI_THINKING_LEVEL}
+      - SAVE_ARTIFACTS_LOCALLY=${SAVE_ARTIFACTS_LOCALLY:-false}
     depends_on:
       - redis
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload

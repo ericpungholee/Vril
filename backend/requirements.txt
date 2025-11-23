@@ -1,6 +1,6 @@
 fastapi
 uvicorn
-replicate
+fal-client
 python-dotenv
 pydantic-settings
 pydantic

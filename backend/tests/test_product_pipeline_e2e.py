@@ -27,7 +27,7 @@ ENV_MISSING = [
     name
     for name, value in [
         ("GEMINI_API_KEY", settings.GEMINI_API_KEY),
-        ("REPLICATE_API_KEY", settings.REPLICATE_API_KEY),
+        ("FAL_KEY", settings.FAL_KEY),
     ]
     if not value
 ]
@@ -40,7 +40,7 @@ pytestmark = pytest.mark.skipif(
     not RUN_PRODUCT_E2E or ENV_MISSING,
     reason=(
         "Set RUN_PRODUCT_E2E=1 (in env or pytest.ini) and configure GEMINI_API_KEY/"
-        "REPLICATE_API_KEY to run real create/edit integration tests"
+        "FAL_KEY to run real create/edit integration tests"
     ),
 )
 
