@@ -20,6 +20,8 @@ export const metadata: Metadata = {
   description: "Packaging Design Tool",
   icons: {
     icon: "/logo.svg",
+    shortcut: "/logo.svg",
+    apple: "/logo.svg",
   },
 };
 
