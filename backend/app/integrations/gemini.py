@@ -85,7 +85,7 @@ class GeminiChatService:
         max_retries = max_retries or settings.GEMINI_MAX_RETRIES
         model_name = self.flash_model
         generation_config = self._build_generation_config(task_type, response_schema)
-            
+
         for attempt in range(max_retries):
             try:
                 self.request_count += 1
@@ -258,14 +258,11 @@ class GeminiImageService:
                 "- Clean, pure white background (#FFFFFF)\n"
                 "- Professional studio lighting with soft shadows\n"
                 "- Sharp focus on the product\n"
-                "- MAXIMUM ZOOM: Fill the frame as much as possible while keeping the ENTIRE product visible\n"
-                "- The product should take up 80-90% of the frame\n"
-                "- Do NOT crop any part of the product\n"
-                "- All edges, handles, and features must be fully visible\n"
-                "- Minimal white space around the product\n"
                 "- Clear, well-defined edges optimized for 3D model generation\n"
                 "- No text, watermarks, or distracting elements\n"
-                "- Product perfectly centered in frame"
+                "- Product centered in frame\n"
+                "- Fill the frame with the product at maximum zoom WITHOUT cropping any part of it\n"
+                "- Product must be COMPLETELY visible with no parts cut off"
             )
         else:
             # First view: establish the product
@@ -276,15 +273,12 @@ class GeminiImageService:
                 "- Clean, pure white background (#FFFFFF)\n"
                 "- Professional studio lighting with soft shadows\n"
                 "- Sharp focus on the product\n"
-                "- MAXIMUM ZOOM: Fill the frame as much as possible while keeping the ENTIRE product visible\n"
-                "- The product should take up 80-90% of the frame\n"
-                "- Do NOT crop any part of the product\n"
-                "- All edges, handles, and features must be fully visible\n"
-                "- Minimal white space around the product\n"
                 "- Clear, well-defined edges optimized for 3D model generation\n"
                 "- No text, watermarks, or distracting elements\n"
-                "- Product perfectly centered in frame\n"
-                "- Consistent design that can be photographed from multiple angles"
+                "- Product centered in frame\n"
+                "- Consistent design that can be photographed from multiple angles\n"
+                "- Fill the frame with the product at maximum zoom WITHOUT cropping any part of it\n"
+                "- Product must be COMPLETELY visible with no parts cut off"
             )
         
         contents: List[types.Part | str] = [enhanced_prompt]
@@ -297,9 +291,8 @@ class GeminiImageService:
             config_kwargs["thinking_config"] = types.ThinkingConfig(
                 thinking_level=thinking_level
             )
-        image_config_kwargs: Dict[str, Any] = {}
-        if self.aspect_ratio:
-            image_config_kwargs["aspect_ratio"] = self.aspect_ratio
+        # Force 1:1 aspect ratio for product images (optimal for 3D reconstruction)
+        image_config_kwargs: Dict[str, Any] = {"aspect_ratio": "1:1"}
         if self.image_size:
             image_config_kwargs["image_size"] = self.image_size
         if image_config_kwargs:
@@ -318,19 +311,19 @@ class GeminiImageService:
 def _extract_first_image(response) -> Optional[str]:
     try:
         if hasattr(response, "candidates") and response.candidates:
-                candidate = response.candidates[0]
+            candidate = response.candidates[0]
             if hasattr(candidate, "content") and candidate.content.parts:
-                    for part in candidate.content.parts:
+                for part in candidate.content.parts:
                     if getattr(part, "inline_data", None):
-                            image_b64 = base64.b64encode(part.inline_data.data).decode()
+                        image_b64 = base64.b64encode(part.inline_data.data).decode()
                         logger.info(f"[gemini] Extracted image from response ({len(image_b64)} chars)")
-                            return f"data:image/png;base64,{image_b64}"
+                        return f"data:image/png;base64,{image_b64}"
         logger.warning(f"[gemini] No inline_data found in response. Candidates: {bool(getattr(response, 'candidates', None))}")
         return None
     except Exception as exc:
         logger.error(f"[gemini] Image extraction failed: {exc}", exc_info=True)
-            return None
-            
+        return None
+
 
 def _image_to_part(image_str: str) -> Optional[types.Part]:
     """Convert a data URL/base64 string into a Gemini content part."""
@@ -342,7 +335,7 @@ def _image_to_part(image_str: str) -> Optional[types.Part]:
             return types.Part.from_bytes(data=image_bytes, mime_type=mime)
     except ValueError as exc:
         logger.warning(f"Failed to convert reference image for Gemini input: {exc}")
-            return None
+    return None
 
 
 # Initialize services
