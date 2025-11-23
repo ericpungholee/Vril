@@ -51,6 +51,7 @@ class GeminiImageService:
         image_count: int = 1,
         reference_images: Optional[List[str]] = None,
         is_texture: bool = False,
+        base_description: Optional[str] = None,
     ) -> List[str]:
         """Generate clean product views using Gemini Image API (synchronous).
         
@@ -90,13 +91,37 @@ class GeminiImageService:
                 # For create flow: first image establishes the product, subsequent use it as reference
                 if is_create_flow and i == 0:
                     # First view: establish the product design
-                    img = self._generate_single_image(prompt, None, thinking, model_to_use, angle_index=i, is_texture=is_texture)
+                    img = self._generate_single_image(
+                        prompt,
+                        None,
+                        thinking,
+                        model_to_use,
+                        angle_index=i,
+                        is_texture=is_texture,
+                        base_description=base_description,
+                    )
                 elif is_create_flow and i > 0:
                     # Subsequent views: same product from different angles
-                    img = self._generate_single_image(prompt, valid_images[:1], thinking, model_to_use, angle_index=i, is_texture=is_texture)
+                    img = self._generate_single_image(
+                        prompt,
+                        valid_images[:1],
+                        thinking,
+                        model_to_use,
+                        angle_index=i,
+                        is_texture=is_texture,
+                        base_description=base_description,
+                    )
                 else:
                     # Edit flow: use provided reference
-                    img = self._generate_single_image(prompt, reference_images, thinking, model_to_use, angle_index=i, is_texture=is_texture)
+                    img = self._generate_single_image(
+                        prompt,
+                        reference_images,
+                        thinking,
+                        model_to_use,
+                        angle_index=i,
+                        is_texture=is_texture,
+                        base_description=base_description,
+                    )
                 
                 if img:
                     valid_images.append(img)
@@ -116,6 +141,7 @@ class GeminiImageService:
         image_count: int = 1,
         reference_images: Optional[List[str]] = None,
         is_texture: bool = False,
+        base_description: Optional[str] = None,
     ) -> List[str]:
         """Generate clean product views using Gemini Image API (async wrapper).
         
@@ -136,6 +162,7 @@ class GeminiImageService:
             image_count,
             reference_images,
             is_texture,
+            base_description,
         )
 
     def _generate_single_image(
@@ -146,6 +173,7 @@ class GeminiImageService:
         model: str,
         angle_index: int = 0,
         is_texture: bool = False,
+        base_description: Optional[str] = None,
     ) -> Optional[str]:
         # Define camera angles for multi-view 3D reconstruction
         # These angles provide maximum surface coverage for photogrammetry
@@ -163,16 +191,19 @@ class GeminiImageService:
             # Don't add "product photograph" prefix - this is a flat texture, not a 3D product
             enhanced_prompt = prompt
         elif reference_images:
-            # Subsequent views or edit flow: maintain consistency with reference
-            # Using image+text-to-image approach for consistency
+            base_desc = (base_description or "").strip() or "the existing product"
+            edit_instruction = prompt.strip() or "Apply the requested edit."
             enhanced_prompt = (
-                f"Create a professional product photograph of the exact same product shown in the reference image, "
-                f"photographed from a {angle_description}. {prompt}\n\n"
-                f"Match the reference image precisely in terms of design, colors, materials, and all details. "
-                f"Photograph the product on a clean white studio background with professional lighting that creates "
-                f"soft shadows. Ensure sharp focus throughout with well-defined edges. "
-                f"Center the product in the frame and fill the frame while keeping the entire product visible - "
-                f"no parts should be cropped or cut off. Avoid any text, watermarks, or distracting elements."
+                "You are editing the exact same product shown in the reference image.\n\n"
+                f"BASE PRODUCT: {base_desc}\n"
+                f"USER EDIT REQUEST: {edit_instruction}\n\n"
+                "Follow these rules strictly:\n"
+                "1. Keep the same product family, proportions, and materials unless the instruction explicitly "
+                "changes them. Every other detail must stay identical.\n"
+                "2. Interpret casual phrases like \"make it...\", \"color it...\", \"give it...\" as concrete, "
+                "visible edits. Exaggerate the requested change so it is obvious in a comparison.\n"
+                "3. Maintain the pure white studio background, matching lighting, lens, framing, and camera height.\n"
+                f"4. Deliver a crisp studio photograph from {angle_description}. No extra props, text, or watermarks.\n"
             )
         else:
             # First view: establish the product

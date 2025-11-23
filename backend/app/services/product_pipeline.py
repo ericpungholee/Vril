@@ -80,6 +80,7 @@ class ProductPipelineService:
                 workflow=mode,  # "create" or "edit" - determines model selection
                 image_count=state.image_count or self._default_image_count,
                 reference_images=reference_images,
+                base_description=state.prompt,
             )
             if not images:
                 raise RuntimeError("Gemini image pipeline returned no images")
