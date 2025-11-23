@@ -211,6 +211,25 @@ function Packaging() {
     setDimensions(prev => {
       const newDimensions = { ...prev, [key]: validValue };
       
+      // Update local packaging state to keep it in sync
+      setPackagingState(prevState => {
+        if (!prevState) return prevState;
+        
+        const updatedState = { ...prevState };
+        if (packageType === 'cylinder') {
+          updatedState.cylinder_state = {
+            ...prevState.cylinder_state,
+            dimensions: newDimensions
+          };
+        } else {
+          updatedState.box_state = {
+            ...prevState.box_state,
+            dimensions: newDimensions
+          };
+        }
+        return updatedState;
+      });
+      
       // Persist to backend (fire-and-forget, non-blocking)
       updatePackagingDimensions(packageType, newDimensions).catch((err: unknown) => {
         console.error("[Packaging] ❌ Failed to save dimensions:", err);
@@ -250,6 +269,10 @@ function Packaging() {
         },
       };
     });
+    
+    // Update local packaging state to keep textures in sync
+    // Backend already saved the texture, we just update local state for shape switching
+    // Note: We'll re-hydrate from backend after generation completes to get full state
 
     // Backend already saved the texture, just show notification
     setShowTextureNotification({ panelId, show: true });
