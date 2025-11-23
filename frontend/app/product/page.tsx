@@ -21,8 +21,9 @@ export default function ProductPage() {
   const { stopLoading } = useLoading();
   const [productState, setProductState] = useState<ProductState | null>(null);
   const [currentModelUrl, setCurrentModelUrl] = useState<string>();
-  const [currentIterationId, setCurrentIterationId] = useState<string | null>(null);
+  const latestIterationIdRef = useRef<string | null>(null);
   const objectUrlRef = useRef<string | null>(null);
+  const pendingRevokeRef = useRef<string[]>([]);
   const [selectedColor, setSelectedColor] = useState("#60a5fa");
   const [selectedTexture, setSelectedTexture] = useState("matte");
   const [lightingMode, setLightingMode] = useState<"studio" | "sunset" | "warehouse" | "forest">("studio");
@@ -32,14 +33,33 @@ export default function ProductPage() {
   const [isEditInProgress, setIsEditInProgress] = useState(false);
 
   const applyModelUrl = useCallback((url?: string, iterationId?: string) => {
-    if (objectUrlRef.current && objectUrlRef.current.startsWith("blob:")) {
-      URL.revokeObjectURL(objectUrlRef.current);
+    if (!url) {
+      return;
     }
-    objectUrlRef.current = url && url.startsWith("blob:") ? url : null;
+    if (
+      objectUrlRef.current &&
+      objectUrlRef.current !== url &&
+      objectUrlRef.current.startsWith("blob:")
+    ) {
+      pendingRevokeRef.current.push(objectUrlRef.current);
+    }
+    objectUrlRef.current = url.startsWith("blob:") ? url : null;
     setCurrentModelUrl(url);
     if (iterationId) {
-      setCurrentIterationId(iterationId);
+      latestIterationIdRef.current = iterationId;
     }
+  }, []);
+
+  const handleViewerModelLoaded = useCallback(() => {
+    if (!pendingRevokeRef.current.length) {
+      return;
+    }
+    pendingRevokeRef.current.forEach((blobUrl) => {
+      if (blobUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(blobUrl);
+      }
+    });
+    pendingRevokeRef.current = [];
   }, []);
 
   const hydrateProductState = useCallback(async () => {
@@ -50,6 +70,11 @@ export default function ProductPage() {
       const remoteModelUrl = state.trellis_output?.model_file;
       if (latestIteration && remoteModelUrl) {
         const iterationId = latestIteration.created_at;
+        if (latestIterationIdRef.current !== iterationId || !currentModelUrl) {
+          objectUrlRef.current = null;
+          setCurrentModelUrl(remoteModelUrl);
+          latestIterationIdRef.current = iterationId;
+        }
         try {
           const cachedUrl = await getCachedModelUrl(iterationId, remoteModelUrl);
           applyModelUrl(cachedUrl, iterationId);
@@ -57,13 +82,11 @@ export default function ProductPage() {
           console.error("Model cache fetch failed, using remote URL:", cacheError);
           applyModelUrl(remoteModelUrl, iterationId);
         }
-      } else if (!remoteModelUrl) {
-        applyModelUrl("", undefined);
       }
     } catch (error) {
       console.error("Failed to load product state:", error);
     }
-  }, [applyModelUrl]);
+  }, [applyModelUrl, currentModelUrl]);
 
   useEffect(() => {
     let isMounted = true;
@@ -78,6 +101,12 @@ export default function ProductPage() {
         URL.revokeObjectURL(objectUrlRef.current);
         objectUrlRef.current = null;
       }
+      pendingRevokeRef.current.forEach((blobUrl) => {
+        if (blobUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(blobUrl);
+        }
+      });
+      pendingRevokeRef.current = [];
     };
   }, [hydrateProductState, stopLoading]);
 
@@ -105,7 +134,7 @@ export default function ProductPage() {
         <div className="flex-1 relative bg-muted/30">
           <ModelViewer
             modelUrl={currentModelUrl}
-            onModelLoaded={setCurrentModelUrl}
+            onModelLoaded={handleViewerModelLoaded}
             selectedColor={selectedColor}
             selectedTexture={selectedTexture}
             lightingMode={lightingMode}
