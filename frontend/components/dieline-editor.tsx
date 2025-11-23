@@ -3,15 +3,25 @@
 import type React from "react"
 
 import { useRef, useEffect, useState } from "react"
-import type { DielinePath } from "@/lib/packaging-types"
+import type { DielinePath, Panel, PanelId } from "@/lib/packaging-types"
 
 interface DielineEditorProps {
   dielines: DielinePath[]
+  panels?: Panel[]
+  selectedPanelId?: PanelId | null
   onDielineChange?: (dielines: DielinePath[]) => void
+  onPanelSelect?: (panelId: PanelId | null) => void
   editable?: boolean
 }
 
-export function DielineEditor({ dielines, onDielineChange, editable = true }: DielineEditorProps) {
+export function DielineEditor({
+  dielines,
+  panels,
+  selectedPanelId,
+  onDielineChange,
+  onPanelSelect,
+  editable = true,
+}: DielineEditorProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [selectedPoint, setSelectedPoint] = useState<{ pathIndex: number; pointIndex: number } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -93,13 +103,25 @@ export function DielineEditor({ dielines, onDielineChange, editable = true }: Di
     // Draw grid
     drawGrid(ctx, canvas.width, canvas.height)
 
+    // Draw panel regions if panels are provided
+    if (panels) {
+      panels.forEach((panel) => {
+        if (panel.bounds && panel.dielinePathIndex !== undefined) {
+          drawPanelRegion(ctx, panel, panel.id === selectedPanelId)
+        }
+      })
+    }
+
     // Draw all dieline paths
     dielines.forEach((path, pathIndex) => {
-      drawDielinePath(ctx, path, pathIndex === selectedPoint?.pathIndex)
+      const isSelected = panels
+        ? panels.find((p) => p.dielinePathIndex === pathIndex)?.id === selectedPanelId
+        : pathIndex === selectedPoint?.pathIndex
+      drawDielinePath(ctx, path, isSelected)
     })
 
     ctx.restore()
-  }, [dielines, scale, offset, selectedPoint])
+  }, [dielines, scale, offset, selectedPoint, panels, selectedPanelId])
 
   const drawGrid = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
     const baseGridSize = 20
@@ -126,6 +148,32 @@ export function DielineEditor({ dielines, onDielineChange, editable = true }: Di
       ctx.lineTo(endX, y)
       ctx.stroke()
     }
+  }
+
+  const drawPanelRegion = (ctx: CanvasRenderingContext2D, panel: Panel, isSelected: boolean) => {
+    if (!panel.bounds) return
+
+    const { minX, minY, maxX, maxY } = panel.bounds
+    const width = maxX - minX
+    const height = maxY - minY
+
+    // Draw semi-transparent background
+    ctx.fillStyle = isSelected ? "rgba(251, 191, 36, 0.2)" : "rgba(59, 130, 246, 0.1)"
+    ctx.fillRect(minX, minY, width, height)
+
+    // Draw border
+    ctx.strokeStyle = isSelected ? "#fbbf24" : "#3b82f6"
+    ctx.lineWidth = isSelected ? 2 / scale : 1 / scale
+    ctx.setLineDash(isSelected ? [] : [5, 5])
+    ctx.strokeRect(minX, minY, width, height)
+    ctx.setLineDash([])
+
+    // Draw panel label
+    ctx.fillStyle = isSelected ? "#fbbf24" : "#3b82f6"
+    ctx.font = `${12 / scale}px sans-serif`
+    ctx.textAlign = "center"
+    ctx.textBaseline = "middle"
+    ctx.fillText(panel.name, minX + width / 2, minY + height / 2)
   }
 
   const drawDielinePath = (ctx: CanvasRenderingContext2D, path: DielinePath, isSelected: boolean) => {
@@ -201,6 +249,25 @@ export function DielineEditor({ dielines, onDielineChange, editable = true }: Di
     const rect = canvas.getBoundingClientRect()
     const x = (e.clientX - rect.left - offset.x) / scale
     const y = (e.clientY - rect.top - offset.y) / scale
+
+    // First check if clicking on a panel region
+    if (panels && onPanelSelect) {
+      for (const panel of panels) {
+        if (panel.bounds && panel.dielinePathIndex !== undefined) {
+          const { minX, minY, maxX, maxY } = panel.bounds
+          if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
+            // Clicked on a panel
+            if (panel.id === selectedPanelId) {
+              onPanelSelect(null) // Deselect if clicking same panel
+            } else {
+              onPanelSelect(panel.id)
+            }
+            setSelectedPoint(null)
+            return
+          }
+        }
+      }
+    }
 
     // Find clicked point
     for (let pathIndex = 0; pathIndex < dielines.length; pathIndex++) {

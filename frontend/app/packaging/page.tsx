@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -9,50 +9,36 @@ import { Slider } from "@/components/ui/slider";
 import { DielineEditor } from "@/components/dieline-editor";
 import { PackageViewer3D } from "@/components/package-viewer-3d";
 import { AIChatPanel } from "@/components/AIChatPanel";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ZoomIn, ZoomOut, Play, Pause, Settings, Sun, Warehouse, Layers, CylinderIcon, Eye as EyeIcon, EyeOff as EyeOffIcon, Box, ShoppingBag } from "lucide-react";
+import { CylinderIcon, Box } from "lucide-react";
 import {
   type PackageType,
   type PackageDimensions,
   DEFAULT_PACKAGE_DIMENSIONS,
-  generateDieline,
-  type DielinePath,
+  generatePackageModel,
+  updateModelFromDielines,
+  type PackageModel,
+  type PanelId,
 } from "@/lib/packaging-types";
 
 export default function Packaging() {
-  const [zoomAction, setZoomAction] = useState<"in" | "out" | null>(null);
-  const [autoRotate, setAutoRotate] = useState(true);
   const [selectedColor, setSelectedColor] = useState("#60a5fa");
-  const [lightingMode, setLightingMode] = useState<"studio" | "sunset" | "warehouse" | "forest">("studio");
-  const [displayMode, setDisplayMode] = useState<"solid" | "wireframe">("solid");
 
-  // Advanced packaging state
-  const [packageType, setPackageType] = useState<PackageType>("box");
-  const [dimensions, setDimensions] = useState<PackageDimensions>(DEFAULT_PACKAGE_DIMENSIONS.box);
-  const [dielines, setDielines] = useState<DielinePath[]>([]);
+  // Advanced packaging state - using PackageModel
+  const [packageType, setPackageTypeState] = useState<PackageType>("box");
+  const [dimensions, setDimensionsState] = useState<PackageDimensions>(DEFAULT_PACKAGE_DIMENSIONS.box);
+  const [packageModel, setPackageModel] = useState<PackageModel>(() =>
+    generatePackageModel("box", DEFAULT_PACKAGE_DIMENSIONS.box)
+  );
+  const [selectedPanelId, setSelectedPanelId] = useState<PanelId | null>(null);
   const [activeView, setActiveView] = useState<"2d" | "3d">("3d");
 
-  // Compute initial dielines from package type and dimensions
-  const computedDielines = useMemo(() => generateDieline(packageType, dimensions), [packageType, dimensions]);
-
-  // Update dielines when computed ones change
+  // Update model when package type or dimensions change
   useEffect(() => {
-    setDielines(computedDielines);
-  }, [computedDielines]);
+    const newModel = generatePackageModel(packageType, dimensions);
+    setPackageModel(newModel);
+    setSelectedPanelId(null); // Reset selection when model changes
+  }, [packageType, dimensions.width, dimensions.height, dimensions.depth]);
 
-  // Reset zoom action after it's been processed
-  useEffect(() => {
-    if (zoomAction) {
-      const timer = setTimeout(() => setZoomAction(null), 200);
-      return () => clearTimeout(timer);
-    }
-  }, [zoomAction]);
 
   const packageTypes: { type: PackageType; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { type: "box", label: "Box", icon: Box },
@@ -60,27 +46,27 @@ export default function Packaging() {
   ];
 
   const handlePackageTypeChange = (type: PackageType) => {
-    setPackageType(type);
-    setDimensions(DEFAULT_PACKAGE_DIMENSIONS[type]);
+    setPackageTypeState(type);
+    setDimensionsState(DEFAULT_PACKAGE_DIMENSIONS[type]);
+    setSelectedPanelId(null);
   };
 
   const handleDimensionChange = (key: keyof PackageDimensions, value: number) => {
-    // Ensure value is valid and only update the specific dimension
-    // This function explicitly updates ONLY the specified dimension key
-    // and leaves all other dimensions completely unchanged
     const validValue = isNaN(value) || value < 0 ? 0 : value;
-    setDimensions((prev) => {
-      // Explicitly preserve all other dimensions and only update the specified one
-      // This ensures X, Y, and Z are completely independent
-      const newDimensions = {
-        width: prev.width,   // X - preserved unless key is "width"
-        height: prev.height,  // Y - preserved unless key is "height"
-        depth: prev.depth,    // Z - preserved unless key is "depth"
-      };
-      // Only update the dimension that was requested
-      newDimensions[key] = validValue;
-      return newDimensions;
-    });
+    setDimensionsState((prev) => ({
+      ...prev,
+      [key]: validValue,
+    }));
+  };
+
+  const handleDielineChange = (newDielines: typeof packageModel.dielines) => {
+    // Update model from dieline changes - this connects dieline and 3D state
+    const updatedModel = updateModelFromDielines(packageModel, newDielines);
+    setPackageModel(updatedModel);
+  };
+
+  const handlePanelSelect = (panelId: PanelId | null) => {
+    setSelectedPanelId(panelId);
   };
 
   return (
@@ -92,58 +78,23 @@ export default function Packaging() {
           {/* Canvas Area */}
           <div className="flex-1 overflow-hidden">
             {activeView === "2d" ? (
-              <DielineEditor dielines={dielines} onDielineChange={setDielines} editable={true} />
+              <DielineEditor
+                dielines={packageModel.dielines}
+                panels={packageModel.panels}
+                selectedPanelId={selectedPanelId}
+                onDielineChange={handleDielineChange}
+                onPanelSelect={handlePanelSelect}
+                editable={true}
+              />
             ) : (
               <div className="h-full bg-muted/30 relative">
                 <PackageViewer3D
-                  packageType={packageType}
-                  dimensions={dimensions}
-                  dielines={dielines}
+                  model={packageModel}
+                  selectedPanelId={selectedPanelId}
+                  onPanelSelect={handlePanelSelect}
                   color={selectedColor}
                 />
 
-                {/* Floating Controls */}
-                <div className="absolute top-4 right-4 flex flex-col gap-2">
-                  <Button size="icon" variant="secondary" onClick={() => setZoomAction("in")}>
-                    <ZoomIn className="w-4 h-4" />
-                  </Button>
-                  <Button size="icon" variant="secondary" onClick={() => setZoomAction("out")}>
-                    <ZoomOut className="w-4 h-4" />
-                  </Button>
-                  <Button size="icon" variant="secondary" onClick={() => setAutoRotate(!autoRotate)}>
-                    {autoRotate ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button size="icon" variant="secondary">
-                        <Settings className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setLightingMode("studio")}>
-                        <Settings className="w-4 h-4 mr-2" />
-                        Studio Lighting
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setLightingMode("sunset")}>
-                        <Sun className="w-4 h-4 mr-2" />
-                        Sunset Lighting
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setLightingMode("warehouse")}>
-                        <Warehouse className="w-4 h-4 mr-2" />
-                        Warehouse Lighting
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => setDisplayMode("solid")}>
-                        <EyeIcon className="w-4 h-4 mr-2" />
-                        Solid View
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setDisplayMode("wireframe")}>
-                        <EyeOffIcon className="w-4 h-4 mr-2" />
-                        Wireframe View
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
               </div>
             )}
           </div>
@@ -205,6 +156,34 @@ export default function Packaging() {
               </div>
             </div>
 
+            {/* Panel Selection */}
+            {packageModel.panels.length > 0 && (
+              <Card className="p-4 space-y-3">
+                <h3 className="text-sm font-semibold text-foreground">Select Panel</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {packageModel.panels.map((panel) => (
+                    <Button
+                      key={panel.id}
+                      variant={selectedPanelId === panel.id ? "default" : "outline"}
+                      className="text-xs"
+                      size="sm"
+                      onClick={() => handlePanelSelect(panel.id === selectedPanelId ? null : panel.id)}
+                    >
+                      {panel.name}
+                    </Button>
+                  ))}
+                </div>
+                {selectedPanelId && (
+                  <div className="mt-2 p-2 bg-muted rounded text-xs">
+                    <p className="font-medium">{packageModel.panels.find((p) => p.id === selectedPanelId)?.name}</p>
+                    <p className="text-muted-foreground mt-1">
+                      {packageModel.panels.find((p) => p.id === selectedPanelId)?.description}
+                    </p>
+                  </div>
+                )}
+              </Card>
+            )}
+
             {/* Dimensions */}
             <Card className="p-4 space-y-4">
               <h3 className="text-sm font-semibold text-foreground">Dimensions (mm)</h3>
@@ -217,7 +196,7 @@ export default function Packaging() {
                       <Label className="text-xs">X</Label>
                       <Input
                         type="number"
-                        value={dimensions.width}
+                        value={packageModel.dimensions.width}
                         onChange={(e) => {
                           const val = Number(e.target.value);
                           if (!isNaN(val) && val >= 0) {
@@ -229,7 +208,7 @@ export default function Packaging() {
                       />
                     </div>
                     <Slider
-                      value={[dimensions.width]}
+                      value={[packageModel.dimensions.width]}
                       onValueChange={([value]) => handleDimensionChange("width", value)}
                       min={20}
                       max={300}
@@ -244,7 +223,7 @@ export default function Packaging() {
                       <Label className="text-xs">Y</Label>
                       <Input
                         type="number"
-                        value={dimensions.height}
+                        value={packageModel.dimensions.height}
                         onChange={(e) => {
                           const val = Number(e.target.value);
                           if (!isNaN(val) && val >= 0) {
@@ -256,7 +235,7 @@ export default function Packaging() {
                       />
                     </div>
                     <Slider
-                      value={[dimensions.height]}
+                      value={[packageModel.dimensions.height]}
                       onValueChange={([value]) => handleDimensionChange("height", value)}
                       min={20}
                       max={400}
@@ -271,7 +250,7 @@ export default function Packaging() {
                       <Label className="text-xs">Z</Label>
                       <Input
                         type="number"
-                        value={dimensions.depth}
+                        value={packageModel.dimensions.depth}
                         onChange={(e) => {
                           const val = Number(e.target.value);
                           if (!isNaN(val) && val >= 0) {
@@ -284,7 +263,7 @@ export default function Packaging() {
                       />
                     </div>
                     <Slider
-                      value={[dimensions.depth]}
+                      value={[packageModel.dimensions.depth]}
                       onValueChange={([value]) => {
                         // Only update depth, X (width) and Y (height) remain unchanged
                         handleDimensionChange("depth", value);
@@ -304,7 +283,7 @@ export default function Packaging() {
                       <Label className="text-xs">Radius</Label>
                       <Input
                         type="number"
-                        value={dimensions.width / 2}
+                        value={packageModel.dimensions.width / 2}
                         onChange={(e) => {
                           const val = Number(e.target.value);
                           if (!isNaN(val) && val >= 0) {
@@ -317,7 +296,7 @@ export default function Packaging() {
                       />
                     </div>
                     <Slider
-                      value={[dimensions.width / 2]}
+                      value={[packageModel.dimensions.width / 2]}
                       onValueChange={([value]) => {
                         // Only update width (diameter = 2 * radius), height remains unchanged
                         handleDimensionChange("width", value * 2);
@@ -335,7 +314,7 @@ export default function Packaging() {
                       <Label className="text-xs">Height</Label>
                       <Input
                         type="number"
-                        value={dimensions.height}
+                        value={packageModel.dimensions.height}
                         onChange={(e) => {
                           const val = Number(e.target.value);
                           if (!isNaN(val) && val >= 0) {
@@ -348,7 +327,7 @@ export default function Packaging() {
                       />
                     </div>
                     <Slider
-                      value={[dimensions.height]}
+                      value={[packageModel.dimensions.height]}
                       onValueChange={([value]) => {
                         // Only update height, radius (width) remains unchanged
                         handleDimensionChange("height", value);
@@ -365,27 +344,36 @@ export default function Packaging() {
 
             {/* Dieline Info */}
             <Card className="p-4 space-y-2 bg-muted/50">
-              <h3 className="text-sm font-semibold text-foreground">Dieline Information</h3>
+              <h3 className="text-sm font-semibold text-foreground">Package Information</h3>
               <div className="text-xs space-y-1">
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Total Paths:</span>
-                  <span className="font-medium text-foreground">{dielines.length}</span>
+                  <span>Total Panels:</span>
+                  <span className="font-medium text-foreground">{packageModel.panels.length}</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Dieline Paths:</span>
+                  <span className="font-medium text-foreground">{packageModel.dielines.length}</span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
                   <span>Total Points:</span>
                   <span className="font-medium text-foreground">
-                    {dielines.reduce((sum, path) => sum + path.points.length, 0)}
+                    {packageModel.dielines.reduce((sum, path) => sum + path.points.length, 0)}
                   </span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
                   <span>Surface Area:</span>
                   <span className="font-medium text-foreground">
-                    {Math.round(
-                      2 *
-                        (dimensions.width * dimensions.height +
-                          dimensions.width * dimensions.depth +
-                          dimensions.height * dimensions.depth),
-                    )}{" "}
+                    {packageType === "box"
+                      ? Math.round(
+                          2 *
+                            (dimensions.width * dimensions.height +
+                              dimensions.width * dimensions.depth +
+                              dimensions.height * dimensions.depth),
+                        )
+                      : Math.round(
+                          Math.PI * dimensions.width * dimensions.height +
+                            2 * Math.PI * (dimensions.width / 2) ** 2,
+                        )}{" "}
                     mm²
                   </span>
                 </div>
