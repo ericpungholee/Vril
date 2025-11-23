@@ -266,17 +266,6 @@ export default function ModelViewer({
         {/* Background color based on theme */}
         <color attach="background" args={["hsl(var(--muted)/0.3)"]} />
 
-        {/* Subtle grid effect */}
-        <mesh position={[0, 0, -10]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[50, 50, 20, 20]} />
-          <meshBasicMaterial
-            color="hsl(var(--muted-foreground))"
-            wireframe
-            transparent
-            opacity={0.05}
-          />
-        </mesh>
-
         <Suspense fallback={null}>
           {/* HDR Environment for PBR materials */}
           <Environment preset={lightingMode} background={false} />
