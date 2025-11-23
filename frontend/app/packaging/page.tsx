@@ -9,17 +9,13 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { DielineEditor } from "@/components/dieline-editor";
 import { PackageViewer3D } from "@/components/package-viewer-3d";
 import { AIChatPanel } from "@/components/AIChatPanel";
-import { CylinderIcon, Box, CheckCircle2, ZoomIn, ZoomOut, Play, Pause, Settings, Sun, Warehouse, Eye, EyeOff, MessageSquare, Pencil } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { CylinderIcon, Box, CheckCircle2, MessageSquare, Pencil } from "lucide-react";
+import { useLoading } from "@/providers/LoadingProvider";
+import { updatePackagingDimensions } from "@/lib/packaging-api";
 import {
   type PackageType,
   type PackageDimensions,
+  type PackagingState,
   DEFAULT_PACKAGE_DIMENSIONS,
   generatePackageModel,
   updateModelFromDielines,
@@ -33,6 +29,12 @@ const PACKAGE_TYPES: readonly { type: PackageType; label: string; icon: React.Co
 ] as const;
 
 function Packaging() {
+  const { stopLoading } = useLoading();
+  const [packagingState, setPackagingState] = useState<PackagingState | null>(null);
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  
   const [packageType, setPackageType] = useState<PackageType>("box");
   const [dimensions, setDimensions] = useState<PackageDimensions>(DEFAULT_PACKAGE_DIMENSIONS.box);
   const [packageModel, setPackageModel] = useState<PackageModel>(() =>
@@ -48,32 +50,60 @@ function Packaging() {
   const [autoRotate, setAutoRotate] = useState(true);
 
   useEffect(() => {
+    // Skip if not yet hydrated (hydration handles model generation)
+    if (!isHydrated) return;
+    
+    console.log("[Packaging] 🔄 Regenerating model from dimension/type change");
     const newModel = generatePackageModel(packageType, dimensions);
     setPackageModel(newModel);
     setSelectedPanelId(null);
   }, [packageType, dimensions.width, dimensions.height, dimensions.depth]);
-
-  useEffect(() => {
-    if (!zoomAction) return;
-    const timer = setTimeout(() => setZoomAction(null), 200);
-    return () => clearTimeout(timer);
-  }, [zoomAction]);
-  const handlePackageTypeChange = useCallback((type: PackageType) => {
+  const handlePackageTypeChange = useCallback(async (type: PackageType) => {
     setPackageType(type);
-    setDimensions(DEFAULT_PACKAGE_DIMENSIONS[type]);
+    const newDimensions = DEFAULT_PACKAGE_DIMENSIONS[type];
+    setDimensions(newDimensions);
     setSelectedPanelId(null);
+    
+    // Persist to backend
+    try {
+      await updatePackagingDimensions(type, newDimensions);
+      console.log("[Packaging] ✅ Persisted package type change");
+    } catch (err: unknown) {
+      console.error("[Packaging] ❌ Failed to save package type:", err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error("[Packaging] Error details:", errorMessage);
+      setSaveError(`Failed to save: ${errorMessage}`);
+      setTimeout(() => setSaveError(null), 5000);
+    }
   }, []);
 
-  const handleDimensionChange = useCallback((key: keyof PackageDimensions, value: number) => {
+  const handleDimensionChange = useCallback(async (key: keyof PackageDimensions, value: number) => {
     const validValue = isNaN(value) || value < 0 ? 0 : value;
-    setDimensions((prev) => ({ ...prev, [key]: validValue }));
-  }, []);
+    
+    setDimensions(prev => {
+      const newDimensions = { ...prev, [key]: validValue };
+      
+      // Persist to backend (fire-and-forget, non-blocking)
+      updatePackagingDimensions(packageType, newDimensions).catch((err: unknown) => {
+        console.error("[Packaging] ❌ Failed to save dimensions:", err);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        console.error("[Packaging] Error details:", errorMessage);
+        setSaveError(`Failed to save: ${errorMessage}`);
+        setTimeout(() => setSaveError(null), 5000);
+      });
+      
+      return newDimensions;
+    });
+  }, [packageType]);
 
   const handleDielineChange = useCallback((newDielines: typeof packageModel.dielines) => {
     setPackageModel((prev) => updateModelFromDielines(prev, newDielines));
   }, []);
 
   const handleTextureGenerated = useCallback((panelId: PanelId, textureUrl: string) => {
+    console.log("[Packaging] 🎨 Texture generated for:", panelId);
+    
+    // Optimistic local update
     setPanelTextures((prev) => ({ ...prev, [panelId]: textureUrl }));
     
     setPackageModel((prev) => ({
@@ -87,6 +117,7 @@ function Packaging() {
       },
     }));
 
+    // Backend already saved the texture, just show notification
     setShowTextureNotification({ panelId, show: true });
     setTimeout(() => setShowTextureNotification(null), 3000);
   }, []);
@@ -146,48 +177,6 @@ function Packaging() {
                     </div>
                   </div>
                 )}
-
-                <div className="absolute top-4 right-4 flex flex-col gap-2">
-                  <Button size="icon" variant="secondary" onClick={() => setZoomAction("in")}>
-                    <ZoomIn className="w-4 h-4" />
-                  </Button>
-                  <Button size="icon" variant="secondary" onClick={() => setZoomAction("out")}>
-                    <ZoomOut className="w-4 h-4" />
-                  </Button>
-                  <Button size="icon" variant="secondary" onClick={() => setAutoRotate(!autoRotate)}>
-                    {autoRotate ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button size="icon" variant="secondary">
-                        <Settings className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setLightingMode("studio")}>
-                        <Settings className="w-4 h-4 mr-2" />
-                        Studio Lighting
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setLightingMode("sunset")}>
-                        <Sun className="w-4 h-4 mr-2" />
-                        Sunset Lighting
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setLightingMode("warehouse")}>
-                        <Warehouse className="w-4 h-4 mr-2" />
-                        Warehouse Lighting
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => setDisplayMode("solid")}>
-                        <Eye className="w-4 h-4 mr-2" />
-                        Solid View
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setDisplayMode("wireframe")}>
-                        <EyeOff className="w-4 h-4 mr-2" />
-                        Wireframe View
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
               </div>
             )}
           </div>
