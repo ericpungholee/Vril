@@ -10,6 +10,22 @@ import { DielineEditor } from "@/components/dieline-editor";
 import { PackageViewer3D } from "@/components/package-viewer-3d";
 import { AIChatPanel } from "@/components/AIChatPanel";
 import { CylinderIcon, Box, CheckCircle2, MessageSquare, Pencil, RotateCcw } from "lucide-react";
+import { useLoading } from "@/providers/LoadingProvider";
+import { updatePackagingDimensions, getPackagingState, getPackagingStatus, resetCurrentShape } from "@/lib/packaging-api";
+import { getCachedTextureUrl } from "@/lib/texture-cache";
+import type {
+  PackageType,
+  PackageDimensions,
+  PackagingState,
+  PackageModel,
+  PanelId,
+  DielinePath,
+} from "@/lib/packaging-types";
+import {
+  DEFAULT_PACKAGE_DIMENSIONS,
+  generatePackageModel,
+  updateModelFromDielines,
+} from "@/lib/packaging-types";
 
 // Separate component for the editor panel to reduce main component re-renders
 const PackagingEditor = React.memo(function PackagingEditor({
@@ -245,20 +261,6 @@ const PackagingEditor = React.memo(function PackagingEditor({
     </TabsContent>
   );
 });
-import { useLoading } from "@/providers/LoadingProvider";
-import { updatePackagingDimensions, getPackagingState, getPackagingStatus, resetCurrentShape } from "@/lib/packaging-api";
-import { getCachedTextureUrl } from "@/lib/texture-cache";
-import {
-  type PackageType,
-  type PackageDimensions,
-  type PackagingState,
-  DEFAULT_PACKAGE_DIMENSIONS,
-  generatePackageModel,
-  updateModelFromDielines,
-  type PackageModel,
-  type PanelId,
-  type DielinePath,
-} from "@/lib/packaging-types";
 
 const PACKAGE_TYPES: readonly { type: PackageType; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { type: "box", label: "Box", icon: Box },
@@ -389,13 +391,20 @@ function Packaging() {
     return () => clearInterval(pollInterval);
   }, [isGenerating, packageType, packageModel]);
 
+  // Track if we should preserve manual dieline edits
+  const [hasManualDielineEdits, setHasManualDielineEdits] = useState(false);
+
   useEffect(() => {
     // Skip if not yet hydrated (hydration handles model generation)
     if (!isHydrated) return;
     
     const newModel = generatePackageModel(packageType, dimensions);
+    
+    // If user manually edited dielines, we could preserve those edits here
+    // But for now, we'll always regenerate to match 3D model
     setPackageModel(newModel);
     setSelectedPanelId(null);
+    setHasManualDielineEdits(false); // Reset flag when dimensions change
   }, [packageType, dimensions.width, dimensions.height, dimensions.depth]);
   
   const handlePackageTypeChange = useCallback(async (type: PackageType) => {
@@ -538,6 +547,7 @@ function Packaging() {
       if (!prev) return prev;
       return updateModelFromDielines(prev, newDielines);
     });
+    setHasManualDielineEdits(true); // Mark that user has manually edited dielines
   }, []);
 
   const handleTextureGenerated = useCallback(async (panelId: PanelId, textureUrl: string) => {
@@ -609,12 +619,14 @@ function Packaging() {
           <div className="flex-1 overflow-hidden">
             {activeView === "2d" ? (
               <DielineEditor
+                key={`${packageType}-${dimensions.width}-${dimensions.height}-${dimensions.depth}`}
                 dielines={packageModel.dielines}
                 panels={packageModel.panels}
                 selectedPanelId={selectedPanelId}
                 onDielineChange={handleDielineChange}
                 onPanelSelect={setSelectedPanelId}
                 editable={true}
+                panelTextures={panelTextures}
               />
             ) : (
               <div className="h-full bg-muted/30 relative">
