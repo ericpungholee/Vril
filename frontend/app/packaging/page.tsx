@@ -276,20 +276,12 @@ function Packaging() {
    */
   const hydrateFromBackend = useCallback(async () => {
     try {
-      console.log("[Packaging] 🔄 Hydrating state from backend");
       const state = await getPackagingState();
       setPackagingState(state);
       
       const targetType = state.current_package_type || 'box';
       const shapeState = targetType === 'cylinder' ? state.cylinder_state : state.box_state;
-      
-      // Use dimensions from the shape's state - backend guarantees valid dimensions
       const targetDimensions = shapeState?.dimensions as PackageDimensions;
-      
-      console.log("[Packaging] 📦 Restoring type:", targetType);
-      console.log("[Packaging] 📏 Restored dimensions:", targetDimensions);
-      console.log("[Packaging] 🎨 Restored textures:", Object.keys(shapeState?.panel_textures || {}));
-      console.log("[Packaging] 📊 Full state - Box dims:", state.box_state?.dimensions, "Cylinder dims:", state.cylinder_state?.dimensions);
       
       // Generate model for current shape type
       const newModel = generatePackageModel(targetType, targetDimensions);
@@ -301,32 +293,29 @@ function Packaging() {
       
       // Restore textures for current shape type
       const cachedTextures: Partial<Record<PanelId, string>> = {};
-      for (const [panelId, texture] of Object.entries(shapeState.panel_textures || {})) {
+      for (const [panelId, texture] of Object.entries(shapeState?.panel_textures || {})) {
         if (newModel.panels.some(p => p.id === panelId)) {
           try {
             const cachedUrl = await getCachedTextureUrl(panelId, texture.texture_url);
             cachedTextures[panelId as PanelId] = cachedUrl;
           } catch (err) {
-            console.error(`[Packaging] ❌ Failed to load texture for ${panelId}:`, err);
+            console.error(`Failed to load texture for ${panelId}:`, err);
           }
         }
       }
       
       if (Object.keys(cachedTextures).length > 0) {
-        console.log("[Packaging] 🎨 Restored textures:", Object.keys(cachedTextures));
         setPanelTextures(cachedTextures);
       }
       
       // Check if generation is in progress
       if (state.in_progress || state.bulk_generation_in_progress) {
-        console.log("[Packaging] ⏳ Generation in progress, resuming polling");
         setIsGenerating(true);
       }
       
       setIsHydrated(true);
     } catch (error) {
-      console.error("[Packaging] ❌ Failed to hydrate packaging state:", error);
-      // On error, use defaults
+      console.error("Failed to hydrate packaging state:", error);
       const defaultModel = generatePackageModel('box', DEFAULT_PACKAGE_DIMENSIONS.box);
       setPackageModel(defaultModel);
       setPackageType('box');
@@ -389,7 +378,6 @@ function Packaging() {
     // Skip if not yet hydrated (hydration handles model generation)
     if (!isHydrated) return;
     
-    console.log("[Packaging] 🔄 Regenerating model from dimension/type change");
     const newModel = generatePackageModel(packageType, dimensions);
     setPackageModel(newModel);
     setSelectedPanelId(null);
@@ -398,15 +386,8 @@ function Packaging() {
   const handlePackageTypeChange = useCallback(async (type: PackageType) => {
     if (!packagingState) return;
     
-    console.log("[Packaging] 📦 Switching from", packageType, "to", type);
-    
-    // Get the saved state for the target shape type - use ONLY saved state
     const targetState = type === 'cylinder' ? packagingState.cylinder_state : packagingState.box_state;
     const targetDimensions = targetState?.dimensions as PackageDimensions;
-    
-    console.log("[Packaging] 🔄 Loading saved state for", type);
-    console.log("[Packaging] 📏 Dimensions:", targetDimensions);
-    console.log("[Packaging] 🎨 Textures:", Object.keys(targetState?.panel_textures || {}));
     
     // Generate model for target shape with its saved dimensions
     const newModel = generatePackageModel(type, targetDimensions);
@@ -425,21 +406,17 @@ function Packaging() {
           const cachedUrl = await getCachedTextureUrl(panelId, texture.texture_url);
           cachedTextures[panelId as PanelId] = cachedUrl;
         } catch (err) {
-          console.error(`[Packaging] ❌ Failed to load texture for ${panelId}:`, err);
+          // Texture load failed, skip this panel
         }
       }
     }
     setPanelTextures(cachedTextures);
-    console.log("[Packaging] ✅ Loaded", Object.keys(cachedTextures).length, "cached textures");
     
     // Persist type switch to backend
     try {
       await updatePackagingDimensions(type, targetDimensions);
-      console.log("[Packaging] ✅ Backend updated: type =", type, ", dims =", targetDimensions);
     } catch (err: unknown) {
-      console.error("[Packaging] ❌ Failed to save package type:", err);
       const errorMessage = err instanceof Error ? err.message : String(err);
-      console.error("[Packaging] Error details:", errorMessage);
       setSaveError(`Failed to save: ${errorMessage}`);
       setTimeout(() => setSaveError(null), 5000);
     }
@@ -511,9 +488,6 @@ function Packaging() {
   }, []);
 
   const handleTextureGenerated = useCallback((panelId: PanelId, textureUrl: string) => {
-    console.log("[Packaging] 🎨 Texture generated for:", panelId);
-    
-    // Optimistic local update
     setPanelTextures((prev) => ({ ...prev, [panelId]: textureUrl }));
     
     setPackageModel((prev) => {
@@ -529,12 +503,7 @@ function Packaging() {
         },
       };
     });
-    
-    // Update local packaging state to keep textures in sync
-    // Backend already saved the texture, we just update local state for shape switching
-    // Note: We'll re-hydrate from backend after generation completes to get full state
 
-    // Backend already saved the texture, just show notification
     setShowTextureNotification({ panelId, show: true });
     setTimeout(() => setShowTextureNotification(null), 3000);
   }, []);
