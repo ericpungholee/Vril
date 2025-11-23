@@ -30,6 +30,11 @@ function ProductPage() {
   
   const latestIterationIdRef = useRef<string | null>(null);
 
+  const previewImage =
+    productState?.trellis_output?.no_background_images?.[0] ??
+    productState?.images?.[0] ??
+    null;
+
   const applyModelUrl = useCallback((url?: string, iterationId?: string) => {
     if (!url) return;
     console.log(`[ProductPage] 🔄 Applying new model: ${iterationId}`);
@@ -123,6 +128,21 @@ function ProductPage() {
             zoomAction={zoomAction}
             autoRotate={autoRotate}
           />
+
+          {previewImage && (
+            <div className="absolute bottom-4 left-4 w-48 border-4 border-black bg-card shadow-[4px_4px_0_rgba(0,0,0,0.5)]">
+              <div className="text-[10px] font-mono uppercase px-3 py-1 border-b-2 border-black bg-black text-white">
+                Latest Render
+              </div>
+              <div className="aspect-square overflow-hidden bg-muted">
+                <img
+                  src={previewImage}
+                  alt="Latest generated preview"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </div>
+          )}
 
           <div className="absolute top-4 right-4 flex flex-col gap-2">
             <Button size="icon" variant="secondary" onClick={() => setZoomAction("in")}>

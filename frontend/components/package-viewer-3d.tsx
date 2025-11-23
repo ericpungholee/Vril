@@ -2,6 +2,7 @@
 
 import { useRef, useMemo, useEffect } from "react"
 import { Canvas, useFrame } from "@react-three/fiber"
+import type { ThreeEvent } from "@react-three/fiber"
 import { OrbitControls, PerspectiveCamera, Environment } from "@react-three/drei"
 import * as THREE from "three"
 import type { PackageModel, PanelId } from "@/lib/packaging-types"
@@ -110,12 +111,12 @@ function BoxPackage3D({
     })
   }, [panelTextures, selectedPanelId, color])
 
-  const handleClick = (event: any) => {
+  const handleClick = (event: ThreeEvent<MouseEvent>) => {
     if (!onPanelSelect) return
 
     event.stopPropagation()
     const intersection = event.intersections?.[0]
-    if (!intersection || intersection.faceIndex === undefined) return
+    if (!intersection || intersection.faceIndex == null) return
 
     // Each face has 2 triangles, so divide by 2 to get face index
     const faceIndex = Math.floor(intersection.faceIndex / 2)
@@ -306,7 +307,7 @@ function CylinderPackage3D({
     return material
   }, [color, panelTextures])
 
-  const handleBodyClick = (event: THREE.Event) => {
+  const handleBodyClick = (event: ThreeEvent<MouseEvent>) => {
     if (!onPanelSelect) return
     event.stopPropagation()
     if ("body" === selectedPanelId) {
@@ -316,7 +317,7 @@ function CylinderPackage3D({
     }
   }
 
-  const handleTopClick = (event: THREE.Event) => {
+  const handleTopClick = (event: ThreeEvent<MouseEvent>) => {
     if (!onPanelSelect) return
     event.stopPropagation()
     if ("top" === selectedPanelId) {
@@ -326,7 +327,7 @@ function CylinderPackage3D({
     }
   }
 
-  const handleBottomClick = (event: THREE.Event) => {
+  const handleBottomClick = (event: ThreeEvent<MouseEvent>) => {
     if (!onPanelSelect) return
     event.stopPropagation()
     if ("bottom" === selectedPanelId) {
@@ -425,7 +426,7 @@ function Package3D({ model, selectedPanelId, onPanelSelect, color, panelTextures
 
 export function PackageViewer3D(props: PackageViewer3DProps) {
   return (
-    <div className="w-full h-full bg-gradient-to-br from-slate-50 to-slate-100 rounded-lg border border-border overflow-hidden relative">
+    <div className="w-full h-full bg-linear-to-br from-slate-50 to-slate-100 rounded-lg border border-border overflow-hidden relative">
       <Canvas 
         key="packaging-viewer-canvas"
         shadows
