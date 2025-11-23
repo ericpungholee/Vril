@@ -159,17 +159,16 @@ export default function Packaging() {
             </h2>
           </div>
 
-          {/* Chat Section - Pinned to Top */}
-          <div className="border-b border-border p-4 flex-shrink-0 bg-muted/10">
-            <h3 className="text-xs font-medium text-muted-foreground mb-2">AI Assistant</h3>
-            <AIChatPanel 
-              selectedPanelId={selectedPanelId}
-              packageModel={packageModel}
-              onTextureGenerated={handleTextureGenerated}
-            />
-          </div>
-
           <div className="flex-1 overflow-y-auto p-4 flex flex-col space-y-4">
+            {/* AI Assistant Section */}
+            <div className="space-y-2">
+              <Label className="text-xs font-medium text-muted-foreground">AI Assistant</Label>
+              <AIChatPanel 
+                selectedPanelId={selectedPanelId}
+                packageModel={packageModel}
+                onTextureGenerated={handleTextureGenerated}
+              />
+            </div>
             {/* View Toggle Buttons */}
             <div className="space-y-2">
               <Label className="text-xs font-medium text-muted-foreground">View Mode</Label>
