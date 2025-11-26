@@ -118,9 +118,10 @@ class ProductPipelineService:
             state.mark_complete("3D asset generated")
             save_product_state(state)
             
-            # Save Trellis GLB model to artifacts (test mode only)
+            # Save Trellis artifacts and state to filesystem (test/demo mode only)
             if settings.SAVE_ARTIFACTS_LOCALLY:
                 self._save_trellis_model(artifacts, mode)
+                self._save_product_state(state, mode)
 
             preview = self._determine_preview_image(state)
             self._update_status(
@@ -215,10 +216,10 @@ class ProductPipelineService:
             logger.warning(f"[product-pipeline] Failed to create artifacts dir: {exc}")
 
     def _save_trellis_model(self, artifacts: TrellisArtifacts, mode: str) -> None:
-        """Download and save Trellis artifacts to filesystem for test inspection.
+        """Download and save Trellis artifacts to filesystem for test/demo inspection.
         
         Note: In normal operation, Trellis URLs are already stored in Redis via
-        ProductState.trellis_output. This method downloads and saves for debugging.
+        ProductState.trellis_output. This method downloads and saves for debugging/demo.
         """
         try:
             if not artifacts.model_file:
@@ -228,16 +229,77 @@ class ProductPipelineService:
             run_dir = ARTIFACTS_DIR / f"trellis_{mode}_{int(time.time())}"
             run_dir.mkdir(parents=True, exist_ok=True)
             
-            # Download GLB model
             import urllib.request
+            from urllib.error import URLError
+            
+            # Download GLB model
             glb_path = run_dir / "model.glb"
             logger.info("[product-pipeline] Downloading GLB from %s...", artifacts.model_file[:80])
             with urllib.request.urlopen(artifacts.model_file) as response:
                 glb_path.write_bytes(response.read())
             logger.info("[product-pipeline] ✓ Saved GLB model to %s (%.1f KB)", glb_path, glb_path.stat().st_size / 1024)
+            
+            # Download videos if available
+            video_assets = [
+                ("color_video", "trellis_color.mp4"),
+                ("normal_video", "trellis_normal.mp4"),
+                ("combined_video", "trellis_combined.mp4"),
+            ]
+            for attr_name, filename in video_assets:
+                url = getattr(artifacts, attr_name, None)
+                if url:
+                    try:
+                        video_path = run_dir / filename
+                        logger.info(f"[product-pipeline] Downloading {attr_name}...")
+                        with urllib.request.urlopen(url) as response:
+                            video_path.write_bytes(response.read())
+                        logger.info(f"[product-pipeline] ✓ Saved {filename} (%.1f KB)", video_path.stat().st_size / 1024)
+                    except URLError as exc:
+                        logger.warning(f"[product-pipeline] Failed to download {attr_name}: {exc}")
+            
+            # Download no-background images if available
+            if artifacts.no_background_images:
+                no_bg_dir = run_dir / "no_background"
+                no_bg_dir.mkdir(exist_ok=True)
+                for idx, img_url in enumerate(artifacts.no_background_images, start=1):
+                    try:
+                        img_path = no_bg_dir / f"no_bg_{idx}.png"
+                        logger.info(f"[product-pipeline] Downloading no-bg image {idx}...")
+                        with urllib.request.urlopen(img_url) as response:
+                            img_path.write_bytes(response.read())
+                        logger.info(f"[product-pipeline] ✓ Saved no_bg_{idx}.png (%.1f KB)", img_path.stat().st_size / 1024)
+                    except URLError as exc:
+                        logger.warning(f"[product-pipeline] Failed to download no-bg image {idx}: {exc}")
                 
         except Exception as exc:
             logger.warning(f"[product-pipeline] Failed to save Trellis artifacts: {exc}")
+
+    def _save_product_state(self, state: ProductState, mode: str) -> None:
+        """Save the full product state as JSON for test/demo inspection.
+        
+        This creates a comprehensive snapshot of the entire generation session
+        including all iterations, prompts, and artifact URLs.
+        """
+        try:
+            import json
+            
+            # Find the most recent Trellis artifact directory
+            trellis_dirs = sorted(ARTIFACTS_DIR.glob(f"trellis_{mode}_*"), key=lambda p: p.name)
+            if not trellis_dirs:
+                logger.warning("[product-pipeline] No Trellis artifact directory found for state save")
+                return
+            
+            run_dir = trellis_dirs[-1]  # Most recent
+            state_path = run_dir / "state.json"
+            
+            # Convert state to JSON-serializable dict
+            state_dict = state.as_json()
+            
+            state_path.write_text(json.dumps(state_dict, indent=2))
+            logger.info(f"[product-pipeline] ✓ Saved product state to {state_path}")
+            
+        except Exception as exc:
+            logger.warning(f"[product-pipeline] Failed to save product state: {exc}")
 
 
 product_pipeline_service = ProductPipelineService()

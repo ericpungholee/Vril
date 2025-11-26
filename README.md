@@ -158,7 +158,43 @@ The backend API will run at `http://localhost:8000`
 Create a `.env` file in the backend directory:
 ```
 GEMINI_API_KEY=your_gemini_api_key_here
+FAL_KEY=your_fal_api_key_here
 ```
+
+### Demo Mode (Save Artifacts Locally)
+
+To save all generated models, images, and videos to your local filesystem for demos/presentations:
+
+**Option 1: Using Demo Mode Script (Recommended)**
+```bash
+# Start backend in demo mode with artifact saving enabled
+./backend/start_demo_mode.sh
+
+# All artifacts will be saved to: backend/tests/artifacts/
+# Each generation creates timestamped folders:
+#   - gemini_create_*/gemini_edit_* (AI images)
+#   - trellis_create_*/trellis_edit_* (3D models, videos, state.json)
+```
+
+**Option 2: Manual Setup**
+```bash
+# Add to backend/.env:
+SAVE_ARTIFACTS_LOCALLY=true
+
+# Then restart normally
+docker compose -f backend/docker-compose.yml restart
+```
+
+**Option 3: One-Off Demo Session**
+```bash
+# Docker
+SAVE_ARTIFACTS_LOCALLY=true docker compose -f backend/docker-compose.yml up
+
+# Local (uvicorn)
+SAVE_ARTIFACTS_LOCALLY=true uvicorn main:app --reload
+```
+
+Artifacts are saved to `backend/tests/artifacts/` with timestamps for easy browsing.
 
 ---
 
