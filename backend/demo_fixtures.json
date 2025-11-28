@@ -3,7 +3,7 @@
   "product_create": {
     "_comment": "Initial product shown after 'create' flow completes",
     "prompt": "Einstein Funko Pop collectible figure",
-    "model_url": "https://v3b.fal.media/files/b/lion/c9tqsJwjx8ersGpgiBnRP_model.glb",
+    "model_url": "https://v3b.fal.media/files/b/kangaroo/FdH-wgaEKlt1jlL63nacD_model.glb",
     "preview_images": [
       "/labubudklego.jpeg"
     ],
@@ -20,12 +20,12 @@
     "trellis_multi_image": true,
     "trellis_multiimage_algo": "stochastic",
     "trellis_seed": 1337,
-    "trellis_last_generated_at": "2025-11-28T04:22:06Z"
+    "trellis_last_generated_at": "2025-11-28T04:30:08Z"
   },
   "product_edit": {
     "_comment": "Edited product shown after 'edit' flow completes",
     "prompt": "Einstein Funko Pop with purple and white colors",
-    "model_url": "https://v3b.fal.media/files/b/penguin/i4YnXFx2tdNJsTKvDwzIe_model.glb",
+    "model_url": "https://v3b.fal.media/files/b/kangaroo/AaWUT3yC49hRU1Om9aU3m_model.glb",
     "preview_images": [
       "PASTE_EDIT_PREVIEW_IMAGE_URL_HERE"
     ],
@@ -41,7 +41,7 @@
     "trellis_multi_image": true,
     "trellis_multiimage_algo": "stochastic",
     "trellis_seed": 1337,
-    "trellis_last_generated_at": "2025-11-28T04:22:52Z"
+    "trellis_last_generated_at": "2025-11-28T04:30:29Z"
   },
   "packaging": {
     "package_type": "box",
