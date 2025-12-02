@@ -659,6 +659,148 @@ curl -X POST http://localhost:8000/demo/seed-from-fixtures
 
 ---
 
+# Part 6: Frontend-Only Demo Mode (No Backend Required)
+
+**Hydrate product state directly from fixtures in the frontend!** This mode eliminates the need for backend calls entirely - perfect for offline demos or when you don't want to run the backend.
+
+## What Frontend Demo Mode Does
+
+1. **Instant load**: Product page hydrates from embedded fixtures immediately
+2. **No network calls**: `getProductState()` and `getProductStatus()` return fixture data
+3. **Cache-compatible**: Works with the existing model caching strategy (stable iteration IDs)
+4. **Visual feedback**: Console banner alerts presenters that demo mode is active
+
+## How to Enable
+
+Add to `frontend/.env.local`:
+
+```bash
+NEXT_PUBLIC_DEMO_MODE=frontend
+```
+
+Or run with the flag:
+
+```bash
+cd frontend
+NEXT_PUBLIC_DEMO_MODE=frontend npm run dev
+```
+
+## When to Use
+
+| Scenario | Use Backend Mock Mode | Use Frontend Demo Mode |
+|----------|----------------------|------------------------|
+| Full presentation flow (create → edit) | ✅ Yes | ❌ No |
+| Show pre-loaded model instantly | ✅ Yes | ✅ Yes |
+| Works offline (no backend) | ❌ No | ✅ Yes |
+| Test frontend in isolation | ❌ No | ✅ Yes |
+| Simulates loading animation | ✅ Yes | ❌ No |
+
+## Setup
+
+### Step 1: Ensure Fixtures Are Valid
+
+The frontend demo mode reads from hardcoded fixtures in `frontend/lib/demo-fixtures.ts`. These are synced from `backend/demo_fixtures.json`.
+
+Make sure your `demo_fixtures.json` has valid URLs:
+
+```json
+{
+  "product_create": {
+    "prompt": "Create a Lego Donkey Kong Labubu",
+    "model_url": "https://v3b.fal.media/files/.../model.glb",
+    "preview_images": ["/labubudklego.jpeg"]
+  }
+}
+```
+
+### Step 2: Update Frontend Fixtures (if needed)
+
+If you change `backend/demo_fixtures.json`, update the matching values in `frontend/lib/demo-fixtures.ts`:
+
+```typescript
+const DEMO_FIXTURES = {
+  product_create: {
+    prompt: "Create a Lego Donkey Kong Labubu",
+    model_url: "https://v3b.fal.media/files/.../model.glb",
+    preview_images: ["/labubudklego.jpeg"],
+    no_background_images: [],
+  },
+  // ...
+};
+```
+
+### Step 3: Enable and Run
+
+```bash
+# Create .env.local if it doesn't exist
+echo "NEXT_PUBLIC_DEMO_MODE=frontend" > frontend/.env.local
+
+# Start frontend
+cd frontend && npm run dev
+```
+
+Open http://localhost:3000/product - the model loads instantly from fixtures!
+
+## How It Works
+
+1. `frontend/lib/product-api.ts` checks `NEXT_PUBLIC_DEMO_MODE`
+2. When set to `"frontend"`, API calls are short-circuited:
+   - `getProductState()` → returns `getDemoProductState()`
+   - `getProductStatus()` → returns `getDemoProductStatus()`
+   - `recoverProductState()` → returns no-op
+3. The product page hydrates normally via `hydrateProductState()`
+4. Model caching still works (uses stable iteration ID `demo_create_v1`)
+
+## Console Output
+
+When demo mode is active, you'll see:
+
+```
+🎭 DEMO MODE ACTIVE
+Product state is loaded from frontend fixtures (no backend required)
+[Demo Mode] 🎭 Returning demo product state from fixtures
+```
+
+## Combining with Backend Mock Mode
+
+You can use both modes together:
+
+| Frontend Flag | Backend Flag | Behavior |
+|--------------|--------------|----------|
+| Not set | `DEMO_MOCK_MODE=true` | Backend serves mock data with loading simulation |
+| `frontend` | Not set | Frontend serves fixtures, backend calls fail (offline OK) |
+| `frontend` | `DEMO_MOCK_MODE=true` | Frontend serves fixtures (backend ignored) |
+
+For most demos, choose one:
+- **Frontend demo mode**: Instant load, no backend needed
+- **Backend mock mode**: Full create/edit flow simulation with loading animations
+
+## Troubleshooting
+
+### Model not loading?
+
+1. Check console for demo mode banner
+2. Verify `NEXT_PUBLIC_DEMO_MODE=frontend` is set
+3. Ensure model URL in fixtures is valid and accessible
+4. Check browser Network tab for 404s on GLB file
+
+### Cache issues?
+
+Clear browser cache and Cache Storage:
+1. DevTools → Application → Cache Storage → Delete `product-models`
+2. Hard refresh the page
+
+### Want to switch back to real backend?
+
+Remove or comment out the env var:
+
+```bash
+# In frontend/.env.local
+# NEXT_PUBLIC_DEMO_MODE=frontend
+```
+
+---
+
 ## Related
 
 - **Test Mode**: See `backend/test_pipeline_manual.sh` for automated E2E testing

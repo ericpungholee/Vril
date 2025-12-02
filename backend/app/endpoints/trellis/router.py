@@ -23,11 +23,11 @@ TRELLIS_PRESETS = {
     },
     "high_quality": {
         "texture_size": 2048,
-        "mesh_simplify": 0.95,
-        "ss_sampling_steps": 20,
+        "mesh_simplify": 0.96,
+        "ss_sampling_steps": 26,
         "ss_guidance_strength": 8.0,
-        "slat_sampling_steps": 20,
-        "slat_guidance_strength": 3.5,
+        "slat_sampling_steps": 26,
+        "slat_guidance_strength": 3.2,
     },
 }
 

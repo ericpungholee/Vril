@@ -169,7 +169,7 @@ const ModelViewer = React.forwardRef<ModelViewerRef, ModelViewerProps>(
     <div className="w-full h-full relative overflow-hidden">
       <Canvas
         key="product-viewer-canvas"
-        camera={{ position: [2, 1.5, 3.5], fov: 50 }}
+        camera={{ position: [1.5, 1, 2.5], fov: 45 }}
         gl={{
           toneMapping: 2,
           toneMappingExposure: 2.0,

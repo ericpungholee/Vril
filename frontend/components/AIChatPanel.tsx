@@ -71,7 +71,7 @@ function ProductAIChatPanel({
   }, []);
 
   const suggestions = [
-    "Make the model taller",
+    "Make it performative",
     "Change the color to blue",
     "Add more details",
     "Rotate the model 90 degrees",

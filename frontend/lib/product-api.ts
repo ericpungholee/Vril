@@ -1,6 +1,10 @@
 import { ProductState, ProductStatus } from "@/lib/product-types";
+import { getDemoProductState, getDemoProductStatus, isDemoMode } from "./demo-fixtures";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+// Frontend demo mode - hydrate from fixtures without backend calls
+const DEMO_FRONTEND = isDemoMode();
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -49,11 +53,19 @@ export async function editProduct(prompt: string): Promise<ProductStatus> {
 }
 
 export async function getProductState(): Promise<ProductState> {
+  if (DEMO_FRONTEND) {
+    console.log("[Demo Mode] 🎭 Returning demo product state from fixtures");
+    return getDemoProductState();
+  }
   const response = await fetch(`${API_BASE}/product`);
   return handleResponse<ProductState>(response);
 }
 
 export async function getProductStatus(): Promise<ProductStatus> {
+  if (DEMO_FRONTEND) {
+    console.log("[Demo Mode] 🎭 Returning demo product status from fixtures");
+    return getDemoProductStatus();
+  }
   const response = await fetch(`${API_BASE}/product/status`);
   return handleResponse<ProductStatus>(response);
 }
@@ -68,6 +80,10 @@ export async function rewindProduct(
 }
 
 export async function recoverProductState(): Promise<{ recovered: boolean; message?: string }> {
+  if (DEMO_FRONTEND) {
+    console.log("[Demo Mode] 🎭 Recovery not needed - using fixtures");
+    return { recovered: false, message: "Demo mode - no recovery needed" };
+  }
   const response = await fetch(`${API_BASE}/product/recover`, {
     method: "POST",
   });

@@ -138,8 +138,8 @@ export default function Home() {
   };
 
   const suggestions = [
+    { text: "Create a Lego Donkey Kong Labubu" },
     { text: "Design a blue water bottle" },
-    { text: "Create a brown wooden baseball bat" },
     { text: "Generate a red lego block" },
   ];
 

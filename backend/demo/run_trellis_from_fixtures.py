@@ -105,7 +105,7 @@ def run_generation(target: str, api_base: str, quality_override: Optional[str]) 
         return
 
     quality = quality_override or section.get("trellis_quality") or "balanced"
-    seed = section.get("trellis_seed", 1337)
+    seed = section.get("trellis_seed")  # None means random
     multi_flag = section.get("trellis_multi_image")
     use_multi = multi_flag if multi_flag is not None else len(images) > 1
     multi_algo = section.get("trellis_multiimage_algo", "stochastic")
@@ -113,9 +113,10 @@ def run_generation(target: str, api_base: str, quality_override: Optional[str]) 
     payload = {
         "images": images,
         "quality": quality,
-        "seed": seed,
         "use_multi_image": use_multi,
     }
+    if seed is not None:
+        payload["seed"] = seed
     if use_multi:
         payload["multiimage_algo"] = multi_algo
 

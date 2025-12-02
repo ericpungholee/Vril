@@ -16,6 +16,7 @@ import { useLoading } from "@/providers/LoadingProvider";
 import { getProductState, recoverProductState } from "@/lib/product-api";
 import { ProductState } from "@/lib/product-types";
 import { getCachedModelUrl } from "@/lib/model-cache";
+import { isDemoMode } from "@/lib/demo-fixtures";
 
 function ProductPage() {
   const { stopLoading } = useLoading();
@@ -121,6 +122,11 @@ function ProductPage() {
   }, [applyModelUrl, currentModelUrl]);
 
   useEffect(() => {
+    // Log demo mode banner for presenters
+    if (isDemoMode()) {
+      console.log("%c🎭 DEMO MODE ACTIVE", "background: #6366f1; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;");
+      console.log("%cProduct state is loaded from frontend fixtures (no backend required)", "color: #6366f1;");
+    }
     // On mount, just hydrate - don't call recovery as it breaks ongoing generations
     hydrateProductState().finally(() => stopLoading());
     // eslint-disable-next-line react-hooks/exhaustive-deps

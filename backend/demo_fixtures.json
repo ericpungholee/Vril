@@ -2,8 +2,8 @@
   "_comment": "Demo fixtures for pre-loading product and packaging state. URLs must be valid external URLs (fal.ai, etc.) that won't expire during your demo.",
   "product_create": {
     "_comment": "Initial product shown after 'create' flow completes",
-    "prompt": "Einstein Funko Pop collectible figure",
-    "model_url": "https://v3b.fal.media/files/b/kangaroo/FdH-wgaEKlt1jlL63nacD_model.glb",
+    "prompt": "Create a Lego Donkey Kong Labubu",
+    "model_url": "/demo_create.glb",
     "preview_images": [
       "/labubudklego.jpeg"
     ],
@@ -18,30 +18,22 @@
     ],
     "preview_image_data_url": "@file:demo/data/create/create_hero.txt",
     "trellis_multi_image": true,
-    "trellis_multiimage_algo": "stochastic",
-    "trellis_seed": 1337,
-    "trellis_last_generated_at": "2025-11-28T04:30:08Z"
+    "trellis_last_generated_at": "2025-11-28T06:25:57Z"
   },
   "product_edit": {
     "_comment": "Edited product shown after 'edit' flow completes",
-    "prompt": "Einstein Funko Pop with purple and white colors",
-    "model_url": "https://v3b.fal.media/files/b/kangaroo/AaWUT3yC49hRU1Om9aU3m_model.glb",
+    "prompt": "Make it performative",
+    "model_url": "/demo_edit.glb",
     "preview_images": [
-      "PASTE_EDIT_PREVIEW_IMAGE_URL_HERE"
+      "/labubu_edit.jpeg"
     ],
     "no_background_images": [],
     "trellis_quality": "balanced",
     "trellis_images": [
-      "@file:demo/data/edit/edit_hero.txt",
-      "@file:demo/data/edit/edit_alt1.txt",
-      "@file:demo/data/edit/edit_alt2.txt",
-      "@file:demo/data/edit/edit_alt3.txt",
-      "@file:demo/data/edit/edit_alt4.txt"
+      "@file:demo/data/edit/edit_alt1.txt"
     ],
-    "trellis_multi_image": true,
-    "trellis_multiimage_algo": "stochastic",
-    "trellis_seed": 1337,
-    "trellis_last_generated_at": "2025-11-28T04:30:29Z"
+    "trellis_multi_image": false,
+    "trellis_last_generated_at": "2025-12-01T23:06:51Z"
   },
   "packaging": {
     "package_type": "box",
