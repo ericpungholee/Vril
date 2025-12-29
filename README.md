@@ -1,6 +1,8 @@
 # Vril — AI-Powered Product Design Studio
 
 **One-Liner:** Vril lets anyone become a physical product designer with the help of AI.
+## Demo Video
+[![YouTube Video](https://img.youtube.com/vi/-yTFJw_ekxk/0.jpg)](https://www.youtube.com/watch?v=-yTFJw_ekxk)
 
 ## The Problem
 
